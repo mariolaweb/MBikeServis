@@ -2,19 +2,18 @@
 
 namespace App\Livewire\WorkOrders;
 
+use App\Models\Bike;
+use App\Models\User;
 use Livewire\Component;
+use App\Models\Customer;
+use App\Models\Location;
+use App\Models\WorkOrder;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-// ✨ ADDED:
-use Illuminate\Support\Str;
-
-use App\Models\User;
-use App\Models\Bike;
-use App\Models\Customer;
-use App\Models\Location;
-use App\Models\WorkOrder;
+use Illuminate\Support\Facades\Http;
 use App\Models\Intake as IntakeModel; // alias je OK
 use App\Enums\WorkOrderStatus;        // ✅ DODANO: enum za statuse
 
@@ -44,6 +43,56 @@ class Intake extends Component
 
     // persist lokacije kroz Livewire zahtjeve (postavljeno u renderu)
     public ?int $locId = null;
+
+
+
+    //testiramo metod za predračun
+    public function startEstimate(int $intakeId)
+{
+    // 1) URL-ovi i tokeni iz config/services.php
+    $base    = rtrim(config('services.erp.base_url'), '/');      // npr. https://bilijar.mariolaweb.com/mock-erp
+    $token   = config('services.erp.token');
+    $return  = rtrim(config('services.erp.redirect'), '/');      // npr. https://bikeservice.mariolaweb.com
+
+    // 2) Vrati se na tvoju rutu nakon potvrde
+    $redirectUrl = $return . "/intakes/{$intakeId}/estimate/return";
+
+    try {
+        $resp = Http::withToken($token)
+            ->acceptJson()
+            ->post($base . '/api/v1/sessions.php', [
+                'intake_id'    => $intakeId,
+                'redirect_url' => $redirectUrl,
+            ]);
+
+        if (!$resp->ok()) {
+            // greška — prikaži poruku korisniku
+            session()->flash('error', 'ERP konekcija nije uspjela ('.$resp->status().').');
+            return;
+        }
+
+        $sessionUrl = data_get($resp->json(), 'session_url');
+        if (!$sessionUrl) {
+            session()->flash('error', 'ERP: session_url nedostaje u odgovoru.');
+            return;
+        }
+
+        // 3) Preusmjeri korisnika na mock-ERP da izabere paket
+        // Livewire 3:
+        return $this->redirect($sessionUrl, navigate: false);
+        // (alternativa) return redirect()->away($sessionUrl);
+
+    } catch (\Throwable $e) {
+        report($e);
+        session()->flash('error', 'Greška pri povezivanju sa ERP-om.');
+    }
+}
+
+
+
+
+
+
 
     protected function loadModel(int $id): void
     {
