@@ -110,7 +110,7 @@ class Intake extends Component
 
         // lista servisera samo ako ima lokacije i ako korisnik uopšte smije dodjeljivati
         $technicians = collect();
-        if ($canAssign && $this->locId) {
+        if ($this->locId) {
             $technicians = User::role('serviser')
                 ->where('location_id', $this->locId)
                 ->orderBy('name')
@@ -132,7 +132,7 @@ class Intake extends Component
         $this->validate();
 
         $user      = Auth::user();
-        $canAssign = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ?? false;
+        $canReassignOnEdit = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ?? false;
         $editing   = (bool) $this->modelId;
 
         // ✅ Definiši $wo prije closure-a (da je siguran u use(...))
@@ -175,7 +175,7 @@ class Intake extends Component
         ];
 
         // dodatna zaštita: serviser mora biti iz iste poslovnice
-        if ($canAssign && $this->assigned_user_id) {
+        if ($this->assigned_user_id) {
             $techOk = User::role('serviser')
                 ->where('id', $this->assigned_user_id)
                 ->where('location_id', $locId)
@@ -186,7 +186,10 @@ class Intake extends Component
             }
         }
 
-        return DB::transaction(function () use ($editing, $canAssign, $locId, $user, $customerData, $bikeData, $intakeData, $assignPayload, $wo) {
+        return DB::transaction(function () use (
+        $editing, $canReassignOnEdit, $locId, $user,
+        $customerData, $bikeData, $intakeData, $assignPayload, $wo
+        ) {
 
             // ============= CREATE =============
             if (!$editing) {
@@ -213,7 +216,7 @@ class Intake extends Component
                 ]);
 
                 // 4) Opcionalno WO
-                if ($canAssign && !empty($assignPayload['assigned_user_id'])) {
+                if (!empty($assignPayload['assigned_user_id'])) {
                     $woNew = WorkOrder::create([
                         'intake_id'   => $intake->id,
                         'location_id' => $locId,
@@ -244,7 +247,7 @@ class Intake extends Component
 
             $wo->bike->update($bikeData);
 
-            if ($canAssign) {
+            if ($canReassignOnEdit) {
                 $prev = $wo->assigned_user_id;
                 $new  = $assignPayload['assigned_user_id'];
 

@@ -87,19 +87,41 @@
         </div>
 
         {{-- Dodjela servisera (opciono) --}}
+        @php
+    // $editing već šalješ u view; koristimo Livewire prop iz komponente
+    $isAssigned = $editing && !empty($this->assigned_user_id);
+
+@endphp
         @if ($location)
             <div>
                 <div class="mb-2 text-sm font-semibold text-gray-700">Dodjela servisera (opciono)</div>
                 <select wire:model.defer="assigned_user_id" class="w-full px-3 py-2 border rounded">
-                    <option value="">— Bez dodjele —</option>
-                    @foreach ($technicians as $tech)
-                        <option value="{{ $tech->id }}">{{ $tech->name }}</option>
-                    @endforeach
-                </select>
+    @if ($isAssigned)
+        {{-- Edit + postoji serviser: jasno naznači da će ukloniti dodjelu --}}
+        <option value="">
+            — Ukloni postojećeg —
+        </option>
+    @else
+        {{-- Create ili već bez servisera --}}
+        <option value="">— Bez dodjele —</option>
+    @endif
+
+    @foreach ($technicians as $tech)
+        <option value="{{ $tech->id }}">{{ $tech->name }}</option>
+    @endforeach
+</select>
+<small class="text-xs text-gray-500">
+    @if ($isAssigned)
+        Odabirom "Ukloni postojećeg" nalog ostaje bez servisera i status se vraća na "Primljen".
+    @else
+        Možeš ostaviti bez dodjele i dodijeliti kasnije.
+    @endif
+</small>
                 @error('assigned_user_id')
                     <div class="mt-1 text-xs text-red-600">{{ $message }}</div>
                 @enderror
             </div>
+
         @endif
 
         <div class="flex justify-end">

@@ -7,6 +7,8 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+// ✨ ADDED:
+use Illuminate\Support\Str;
 
 use App\Models\User;
 use App\Models\Bike;
@@ -105,10 +107,10 @@ class Intake extends Component
         // persist za naredne korake (submit itd.)
         $this->locId = $locId;
 
-        // ko smije vidjeti/dodijeliti servisera
+        // ko smije vidjeti/dodijeliti servisera (ostaje za EDIT pravila; na CREATE svi mogu dodijeliti)
         $canAssign = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ?? false;
 
-        // lista servisera samo ako ima lokacije i ako korisnik uopšte smije dodjeljivati
+        // 🔧 CHANGED: punimo listu tehničara uvijek kad ima lokacije (bez role gate-a)
         $technicians = collect();
         if ($this->locId) {
             $technicians = User::role('serviser')
@@ -187,8 +189,8 @@ class Intake extends Component
         }
 
         return DB::transaction(function () use (
-        $editing, $canReassignOnEdit, $locId, $user,
-        $customerData, $bikeData, $intakeData, $assignPayload, $wo
+            $editing, $canReassignOnEdit, $locId, $user,
+            $customerData, $bikeData, $intakeData, $assignPayload, $wo
         ) {
 
             // ============= CREATE =============
@@ -215,14 +217,20 @@ class Intake extends Component
                     'bike_id'     => $bike->id,
                 ]);
 
-                // 4) Opcionalno WO
+                // 4) Opcionalno WO (samo ako je serviser izabran)
                 if (!empty($assignPayload['assigned_user_id'])) {
+                    // ✨ ADDED: broj WO se generiše ovdje (u istoj transakciji)
+                    $number = $this->makeWorkOrderNumber($locId);
+
                     $woNew = WorkOrder::create([
-                        'intake_id'   => $intake->id,
-                        'location_id' => $locId,
-                        'customer_id' => $customer->id,
-                        'bike_id'     => $bike->id,
-                        'status'      => WorkOrderStatus::RECEIVED,
+                        'intake_id'        => $intake->id,
+                        'location_id'      => $locId,
+                        'customer_id'      => $customer->id,
+                        'bike_id'          => $bike->id,
+                        // 🔧 CHANGED: status kroz enum value
+                        'status'           => WorkOrderStatus::RECEIVED->value,
+                        // ✨ ADDED:
+                        'number'           => $number,
                     ] + $assignPayload);
 
                     $intake->update([
@@ -234,7 +242,6 @@ class Intake extends Component
                 }
 
                 session()->flash('ok', 'Prijem evidentiran – bez dodijeljenog servisera.');
-                // session drži lokaciju — nema potrebe za ?location
                 return redirect()->route('workorders-board');
             }
 
@@ -252,12 +259,13 @@ class Intake extends Component
                 $new  = $assignPayload['assigned_user_id'];
 
                 if ($prev && !$new) {
-                    // uklanjanje dodjele → vrati u "Nalozi bez servisera"
+                    // uklanjanje dodjele → WO ostaje u listi, bez servisera
                     $wo->update([
                         'assigned_user_id'    => null,
                         'assigned_at'         => null,
                         'assigned_by_user_id' => null,
-                        'status'              => WorkOrderStatus::RECEIVED,
+                        // 🔧 CHANGED: status kroz enum value (ako vraćaš na RECEIVED)
+                        'status'              => WorkOrderStatus::RECEIVED->value,
                     ]);
                 } elseif (!$prev && $new) {
                     // prva dodjela
@@ -269,8 +277,31 @@ class Intake extends Component
             }
 
             session()->flash('ok', 'Nalog sačuvan.');
-            // ostani na čistoj edit ruti
             return redirect()->route('workorders-edit', ['workorder' => $wo->id]);
         });
+    }
+
+    // ✨ ADDED: generator broja naloga, bez dodatnih tabela
+    private function makeWorkOrderNumber(int $locationId): string
+    {
+        $code = Location::where('id', $locationId)->value('code') ?? 'WO';
+
+        // Osnovni format: CODE-YYYYMMDD-HHMMSS
+        $base = $code . '-' . now()->format('Ymd-His');
+        $number = $base;
+
+        // Minimalna zaštita od rijetkog sudara (u istoj sekundi):
+        $tries = 0;
+        while (WorkOrder::where('number', $number)->exists() && $tries < 3) {
+            // dodaj kratki random sufiks
+            $number = $base . '-' . Str::upper(Str::random(2));
+            $tries++;
+        }
+        // Ako i dalje postoji (ekstremno rijetko), fallback na ULID (i dalje čuva CODE prefiks)
+        if (WorkOrder::where('number', $number)->exists()) {
+            $number = $code . '-' . Str::ulid();
+        }
+
+        return $number;
     }
 }

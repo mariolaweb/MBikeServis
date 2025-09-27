@@ -73,12 +73,11 @@
                                 </td>
                                 <td class="px-4 py-2 text-right">
                                     @hasanyrole('master-admin|vlasnik|menadzer')
-                                        {{-- 🔧 CHANGED: umjesto direktne konverzije, otvaramo modal za izbor servisera --}}
                                         <button type="button"
-                                                wire:click.prevent="openAssignModal({{ $it->id }})"
+                                                wire:click.prevent="convertIntake({{ $it->id }})"
                                                 wire:loading.attr="disabled"
                                                 class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                                            Dodijeli servisera & Kreiraj nalog
+                                            Kreiraj nalog
                                         </button>
                                     @endhasanyrole
                                 </td>
@@ -99,9 +98,51 @@
         </div>
     @endif
 
-    {{-- 🗑️ REMOVED: "Nalozi bez dodijeljenog servisera" međutabela --}}
+    {{-- Nalozi bez dodijeljenog servisera --}}
+    <div class="border-t">
+        <div class="px-4 py-3 text-sm font-semibold bg-gray-50">Nalozi bez dodijeljenog servisera</div>
 
-    {{-- RADNI NALOZI (svi vide; Uredi/dodjela/ukloni dodjelu) --}}
+        <table class="min-w-full text-sm">
+            <thead class="text-left bg-gray-50">
+                <tr>
+                    <th class="px-4 py-2">Datum</th>
+                    <th class="px-4 py-2">Mušterija</th>
+                    <th class="px-4 py-2">Bicikl</th>
+                    <th class="w-40 px-4 py-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($pendingWo as $wo)
+                    <tr class="border-t" wire:key="pending-wo-{{ $wo->id }}">
+                        <td class="px-4 py-2 whitespace-nowrap">{{ $wo->created_at->format('d.m.Y H:i') }}</td>
+                        <td class="px-4 py-2">
+                            {{ $wo->customer?->name }}
+                            <div class="text-xs text-gray-500">{{ $wo->customer?->phone }}</div>
+                        </td>
+                        <td class="px-4 py-2">
+                            {{ $wo->bike?->brand }}@if($wo->bike?->model) — {{ $wo->bike->model }} @endif
+                        </td>
+                        <td class="px-4 py-2 text-right">
+                            <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
+                               class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
+                                Dodijeli servisera
+                            </a>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" class="px-4 py-6 text-center text-gray-500">Nema naloga bez dodjele.</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+
+        <div class="px-4 py-3">
+            {{ method_exists($pendingWo, 'links') ? $pendingWo->withQueryString()->links() : '' }}
+        </div>
+    </div>
+
+    {{-- RADNI NALOZI (svi vide; Uredi dugme za menadžer/admin/owner) --}}
     <div class="overflow-hidden bg-white border rounded-xl">
         <div class="px-4 py-3 text-sm font-semibold border-b bg-gray-50">Radni nalozi</div>
 
@@ -119,12 +160,7 @@
             <tbody>
                 @forelse($workOrders as $wo)
                     <tr class="border-t">
-                        <td class="px-4 py-2 whitespace-nowrap">
-                            {{ $wo->number }}
-                            @if (is_null($wo->assigned_user_id))
-                                <span class="ml-2 rounded bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-800 align-middle">Bez servisera</span>
-                            @endif
-                        </td>
+                        <td class="px-4 py-2 whitespace-nowrap">{{ $wo->number }}</td>
                         <td class="px-4 py-2">
                             {{ $wo->customer?->name }}
                             <div class="text-xs text-gray-500">{{ $wo->customer?->phone }}</div>
@@ -135,28 +171,20 @@
                         <td class="px-4 py-2">{{ $wo->assignedUser?->name ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $wo->status?->label() ?? '—' }}</td>
                         <td class="px-4 py-2 text-right">
-    @hasanyrole('master-admin|vlasnik|menadzer')
-        @if (is_null($wo->assigned_user_id))
-            {{-- Ako nema servisera: jedan jasan CTA --}}
-            <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
-               class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
-                Dodijeli servisera
-            </a>
-        @else
-            {{-- Ako ima servisera: standardne akcije --}}
-            <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
-               class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                Uredi
-            </a>
-            {{-- <button type="button"
-                    wire:click="unassignWo({{ $wo->id }})"
-                    class="ml-2 rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                Ukloni dodjelu
-            </button> --}}
-        @endif
-    @endhasanyrole
-</td>
-
+                            @hasanyrole('master-admin|vlasnik|menadzer')
+                                <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
+                                   class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
+                                    Uredi
+                                </a>
+                                @if ($wo->assigned_user_id)
+                                    <button type="button"
+                                            wire:click="unassignWo({{ $wo->id }})"
+                                            class="ml-2 rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
+                                        Ukloni dodjelu
+                                    </button>
+                                @endif
+                            @endhasanyrole
+                        </td>
                     </tr>
                 @empty
                     <tr>
@@ -170,43 +198,4 @@
             {{ $workOrders->withQueryString()->links() }}
         </div>
     </div>
-
-    {{-- ✨ ADDED: Modal za dodjelu servisera & kreiranje naloga iz prijema --}}
-    @if ($showAssignModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div class="w-full max-w-md p-6 bg-white shadow-xl rounded-xl">
-                <div class="mb-4 text-sm font-semibold">Dodijeli servisera i kreiraj nalog</div>
-
-                @if (empty($technicians))
-                    <div class="p-3 mb-4 text-sm text-yellow-800 rounded bg-yellow-50">
-                        Nema dostupnih servisera za ovu poslovnicu.
-                    </div>
-                @else
-                    <label class="block text-xs text-gray-600">Serviser</label>
-                    <select wire:model="technicianId" class="w-full px-3 py-2 mt-1 border rounded">
-                        <option value="">— Odaberi servisera —</option>
-                        @foreach ($technicians as $tech)
-                            <option value="{{ $tech['id'] }}">{{ $tech['name'] }}</option>
-                        @endforeach
-                    </select>
-                    @error('technician') <div class="mt-1 text-xs text-red-600">{{ $message }}</div> @enderror
-                @endif
-
-                <div class="flex items-center justify-end gap-2 mt-6">
-                    <button type="button"
-                            wire:click="$set('showAssignModal', false)"
-                            class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                        Odustani
-                    </button>
-                    <button type="button"
-                            wire:click="convertIntake({{ $intakeIdForAssign }})"
-                            wire:loading.attr="disabled"
-                            class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                            @if (empty($technicians)) disabled @endif>
-                        Potvrdi
-                    </button>
-                </div>
-            </div>
-        </div>
-    @endif
 </div>
