@@ -20,7 +20,8 @@ return new class extends Migration
             $table->string('address')->nullable();
             $table->text('notes')->nullable();     // interne napomene
             $table->timestamps();
-            $table->index(['phone', 'email']);
+            $table->index('phone', 'customers_phone_index');
+            $table->index('email', 'customers_email_index');
         });
     }
 
