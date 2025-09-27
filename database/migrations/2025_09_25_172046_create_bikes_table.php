@@ -20,7 +20,10 @@ return new class extends Migration
             $table->string('serial_number')->nullable(); // serijski broj (ako postoji)
             $table->text('description')->nullable();
             $table->timestamps();
-            $table->index(['customer_id', 'brand', 'model']);
+            $table->index('customer_id');   // kreirat će npr. "bikes_customer_id_index"
+            $table->index('brand');         // "bikes_brand_index"
+            $table->index('model');         // "bikes_model_index"
+
         });
     }
 
