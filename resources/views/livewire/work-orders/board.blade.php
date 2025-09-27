@@ -29,8 +29,8 @@
         @endphp
 
         <a href="{{ $canOpenIntake ? route('workorders-create') : '#' }}"
-           class="rounded border px-3 py-1.5 text-sm hover:bg-gray-50 {{ $canOpenIntake ? '' : 'opacity-50 cursor-not-allowed pointer-events-none' }}"
-           @unless($canOpenIntake) aria-disabled="true" title="Prvo izaberi poslovnicu na Dashboardu" @endunless>
+            class="{{ $canOpenIntake ? '' : 'opacity-50 cursor-not-allowed pointer-events-none' }} rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+            @unless ($canOpenIntake) aria-disabled="true" title="Prvo izaberi poslovnicu na Dashboardu" @endunless>
             + Prijem bicikla
         </a>
 
@@ -46,7 +46,7 @@
     </div>
 
     {{-- PRIJEMI NA ČEKANJU (samo menadžer + admin/vlasnik) --}}
-    {{-- @if ($isAdminOwner || $isManager) --}}
+    @if ($isAdminOwner || $isManager)
         <div class="overflow-hidden bg-white border rounded-xl">
             <div class="px-4 py-3 text-sm font-semibold border-b bg-gray-50">Prijemi (bez radnog naloga)</div>
             @if (!$currentLocation)
@@ -69,20 +69,31 @@
                                 <td class="px-4 py-2">{{ $it->customer->name }}</td>
                                 <td class="px-4 py-2">{{ $it->customer->phone }}</td>
                                 <td class="px-4 py-2">
-                                    {{ $it->bike->brand }}@if ($it->bike->model) — {{ $it->bike->model }} @endif
+                                    {{ $it->bike->brand }}@if ($it->bike->model)
+                                        — {{ $it->bike->model }}
+                                    @endif
                                 </td>
                                 <td class="px-4 py-2 text-right">
                                     @hasanyrole('master-admin|vlasnik|menadzer')
                                         {{-- 🔧 CHANGED: umjesto direktne konverzije, otvaramo modal za izbor servisera --}}
-                                        <button type="button"
-                                                wire:click.prevent="openAssignModal({{ $it->id }})"
-                                                wire:loading.attr="disabled"
-                                                class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
+                                        <button type="button" wire:click.prevent="openAssignModal({{ $it->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
                                             Dodijeli servisera & Kreiraj nalog
                                         </button>
                                     @endhasanyrole
                                 </td>
                             </tr>
+
+                            @hasanyrole('master-admin|vlasnik|menadzer')
+    <button type="button"
+            wire:click="startEstimate({{ $it->id }})"
+            class="ml-2 bg-blue-500 text-white rounded border px-3 py-1.5 text-xs">
+        Napravi predračun
+    </button>
+@endhasanyrole
+
+
                         @empty
                             <tr>
                                 <td colspan="5" class="px-4 py-6 text-center text-gray-500">
@@ -92,19 +103,23 @@
                         @endforelse
                     </tbody>
                 </table>
+                @if (session('error'))
+  <div class="px-4 py-2 text-sm text-red-600">{{ session('error') }}</div>
+@endif
+
                 <div class="px-4 py-3">
                     {{ method_exists($intakes, 'links') ? $intakes->withQueryString()->links() : '' }}
                 </div>
             @endif
         </div>
-    {{-- @endif --}}
+    @endif
 
 
     {{-- RADNI NALOZI (svi vide; Uredi/dodjela/ukloni dodjelu) --}}
     <div class="overflow-hidden bg-white border rounded-xl">
         <div class="px-4 py-3 text-sm font-semibold border-b bg-gray-50">Radni nalozi</div>
 
-        <table class="min-w-full text-sm">
+            <table class="min-w-full text-sm">
             <thead class="text-left bg-gray-50">
                 <tr>
                     <th class="px-4 py-2">Broj</th>
@@ -121,7 +136,9 @@
                         <td class="px-4 py-2 whitespace-nowrap">
                             {{ $wo->number }}
                             @if (is_null($wo->assigned_user_id))
-                                <span class="ml-2 rounded bg-yellow-100 px-2 py-0.5 text-[10px] font-semibold text-yellow-800 align-middle">Bez servisera</span>
+                                <span
+                                    class="ml-2 rounded bg-yellow-100 px-2 py-0.5 align-middle text-[10px] font-semibold text-yellow-800">Bez
+                                    servisera</span>
                             @endif
                         </td>
                         <td class="px-4 py-2">
@@ -129,83 +146,83 @@
                             <div class="text-xs text-gray-500">{{ $wo->customer?->phone }}</div>
                         </td>
                         <td class="px-4 py-2">
-                            {{ $wo->bike?->brand }}@if ($wo->bike?->model) — {{ $wo->bike->model }} @endif
+                            {{ $wo->bike?->brand }}@if ($wo->bike?->model)
+                                — {{ $wo->bike->model }}
+                            @endif
                         </td>
                         <td class="px-4 py-2">{{ $wo->assignedUser?->name ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $wo->status?->label() ?? '—' }}</td>
                         <td class="px-4 py-2 text-right">
-    @hasanyrole('master-admin|vlasnik|menadzer')
-        @if (is_null($wo->assigned_user_id))
-            {{-- Ako nema servisera: jedan jasan CTA --}}
-            <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
-               class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
-                Dodijeli servisera
-            </a>
-        @else
-            {{-- Ako ima servisera: standardne akcije --}}
-            <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
-               class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                Uredi
-            </a>
-            {{-- <button type="button"
-                    wire:click="unassignWo({{ $wo->id }})"
-                    class="ml-2 rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                Ukloni dodjelu
-            </button> --}}
-        @endif
-    @endhasanyrole
-</td>
+                            @hasanyrole('master-admin|vlasnik|menadzer')
+                                @if (is_null($wo->assigned_user_id))
+                                    {{-- Ako nema servisera: jedan jasan CTA --}}
+                                    <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
+                                        class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
+                                        Dodijeli servisera
+                                    </a>
+                                @else
+                                    {{-- Ako ima servisera: standardne akcije --}}
+                                    <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
+                                        class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
+                                        Uredi
+                                    </a>
+                                @endif
+                            @endhasanyrole
+                        </td>
 
                     </tr>
-                @empty
-                    <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-gray-500">Nema naloga za prikaz.</td>
-                    </tr>
-                @endforelse
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-4 py-6 text-center text-gray-500">Nema naloga za prikaz.</td>
+                        </tr>
+                    @endforelse
             </tbody>
-        </table>
+            </table>
 
-        <div class="px-4 py-3">
-            {{ $workOrders->withQueryString()->links() }}
-        </div>
+            <div class="px-4 py-3">
+                {{ $workOrders->withQueryString()->links() }}
+            </div>
     </div>
 
-    {{-- ✨ ADDED: Modal za dodjelu servisera & kreiranje naloga iz prijema --}}
-    @if ($showAssignModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div class="w-full max-w-md p-6 bg-white shadow-xl rounded-xl">
-                <div class="mb-4 text-sm font-semibold">Dodijeli servisera i kreiraj nalog</div>
+        {{-- ✨ ADDED: Modal za dodjelu servisera & kreiranje naloga iz prijema --}}
+        @if ($showAssignModal)
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                <div class="w-full max-w-md p-6 bg-white shadow-xl rounded-xl">
+                    <div class="mb-4 text-sm font-semibold">Dodijeli servisera i kreiraj nalog</div>
 
-                @if (empty($technicians))
-                    <div class="p-3 mb-4 text-sm text-yellow-800 rounded bg-yellow-50">
-                        Nema dostupnih servisera za ovu poslovnicu.
-                    </div>
-                @else
-                    <label class="block text-xs text-gray-600">Serviser</label>
-                    <select wire:model="technicianId" class="w-full px-3 py-2 mt-1 border rounded">
-                        <option value="">— Odaberi servisera —</option>
-                        @foreach ($technicians as $tech)
-                            <option value="{{ $tech['id'] }}">{{ $tech['name'] }}</option>
-                        @endforeach
-                    </select>
-                    @error('technician') <div class="mt-1 text-xs text-red-600">{{ $message }}</div> @enderror
-                @endif
+                    @if (empty($technicians))
+                        <div class="p-3 mb-4 text-sm text-yellow-800 rounded bg-yellow-50">
+                            Nema dostupnih servisera za ovu poslovnicu.
+                        </div>
+                    @else
+                        <label class="block text-xs text-gray-600">Serviser</label>
+                        <select wire:model="technicianId" class="w-full px-3 py-2 mt-1 border rounded">
+                            <option value="">— Odaberi servisera —</option>
+                            @foreach ($technicians as $tech)
+                                <option value="{{ $tech['id'] }}">{{ $tech['name'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('technician')
+                            <div class="mt-1 text-xs text-red-600">{{ $message }}</div>
+                        @enderror
+                    @endif
 
-                <div class="flex items-center justify-end gap-2 mt-6">
-                    <button type="button"
-                            wire:click="$set('showAssignModal', false)"
+                    <div class="flex items-center justify-end gap-2 mt-6">
+                        <button type="button" wire:click="$set('showAssignModal', false)"
                             class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                        Odustani
-                    </button>
-                    <button type="button"
-                            wire:click="convertIntake({{ $intakeIdForAssign }})"
+                            Odustani
+                        </button>
+                        <button type="button" wire:click="convertIntake({{ $intakeIdForAssign }})"
                             wire:loading.attr="disabled"
                             class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                             @if (empty($technicians)) disabled @endif>
-                        Potvrdi
-                    </button>
+                            Potvrdi
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
-    @endif
+        @endif
+
 </div>
+
+
