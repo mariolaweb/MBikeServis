@@ -46,7 +46,7 @@
     </div>
 
     {{-- PRIJEMI NA ČEKANJU (samo menadžer + admin/vlasnik) --}}
-    @if ($isAdminOwner || $isManager)
+    {{-- @if ($isAdminOwner || $isManager) --}}
         <div class="overflow-hidden bg-white border rounded-xl">
             <div class="px-4 py-3 text-sm font-semibold border-b bg-gray-50">Prijemi (bez radnog naloga)</div>
             @if (!$currentLocation)
@@ -97,9 +97,8 @@
                 </div>
             @endif
         </div>
-    @endif
+    {{-- @endif --}}
 
-    {{-- 🗑️ REMOVED: "Nalozi bez dodijeljenog servisera" međutabela --}}
 
     {{-- RADNI NALOZI (svi vide; Uredi/dodjela/ukloni dodjelu) --}}
     <div class="overflow-hidden bg-white border rounded-xl">

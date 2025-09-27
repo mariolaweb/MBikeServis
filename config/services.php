@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    //Dodano zbog konekcije sa ERP
+    'erp' => [
+        'base_url' => env('ERP_BASE_URL'),
+        'token'    => env('ERP_API_TOKEN'),
+        'secret'   => env('ERP_WEBHOOK_SECRET'),
+        'redirect' => env('ERP_REDIRECT_BASE'),
+    ],
+
+
 ];
