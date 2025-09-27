@@ -46,34 +46,33 @@ class Board extends Component
         $redirectUrl = $return . "/intakes/{$intakeId}/estimate/return";
 
         try {
-            $resp = Http::withToken($token)
-                ->acceptJson()
-                ->post($base . '/api/v1/sessions.php', [
-                    'intake_id'    => $intakeId,
-                    'redirect_url' => $redirectUrl,
-                ]);
+    $resp = Http::withOptions([
+                // privremeno za diag SSL/WAF probleme; POSLIJE vrati na true/izbaci
+                'verify' => false,
+            ])
+            ->withToken($token)
+            ->acceptJson()
+            ->post($base . '/api/v1/sessions.php', [
+                'intake_id'    => $intakeId,
+                'redirect_url' => $redirectUrl,
+            ]);
 
-            if (!$resp->ok()) {
-                // greška — prikaži poruku korisniku
-                session()->flash('error', 'ERP konekcija nije uspjela (' . $resp->status() . ').');
-                return;
-            }
+    if (!$resp->ok() || empty($resp['session_url'])) {
+        // pokaži tačan status i kratko tijelo odgovora
+        session()->flash(
+            'error',
+            'ERP greška: HTTP '.$resp->status().' — '.mb_strimwidth($resp->body(), 0, 200, '…')
+        );
+        return;
+    }
 
-            $sessionUrl = data_get($resp->json(), 'session_url');
-            if (!$sessionUrl) {
-                session()->flash('error', 'ERP: session_url nedostaje u odgovoru.');
-                return;
-            }
+    return $this->redirect($resp['session_url'], navigate: false);
 
-            // 3) Preusmjeri korisnika na mock-ERP da izabere paket
-            // Livewire 3:
-            return $this->redirect($sessionUrl, navigate: false);
-            // (alternativa) return redirect()->away($sessionUrl);
+} catch (\Throwable $e) {
+    // exception (DNS/SSL/timeout i sl.) — pokaži poruku
+    session()->flash('error', 'ERP exception: '.$e->getMessage());
+}
 
-        } catch (\Throwable $e) {
-            report($e);
-            session()->flash('error', 'Greška pri povezivanju sa ERP-om.');
-        }
     }
 
 
