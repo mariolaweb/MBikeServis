@@ -23,4 +23,11 @@ Route::middleware([
     Route::get('/prijem-bicikla', Intake::class)->name('workorders-create');
     Route::get('/radni-nalozi/{workorder}/uredi', Intake::class)->whereNumber('workorder')->name('workorders-edit');
 
+
+    Route::get('/intakes/{intake}/estimate/return', function ($intake) {
+    return "Predračun procesiran (intake {$intake}).";
+});
+
+
+
 });
