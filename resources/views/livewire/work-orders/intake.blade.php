@@ -133,15 +133,4 @@
         </div>
     </form>
 
-
-    <button type="button"
-        wire:click="startEstimate({{ $intake->id }})"
-        class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-    Napravi predračun
-</button>
-
-@if (session('error'))
-  <div class="mt-2 text-sm text-red-600">{{ session('error') }}</div>
-@endif
-
 </div>
