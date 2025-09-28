@@ -42,7 +42,7 @@ class PublicWorkOrderController extends Controller
                 'line_total' => (float)$i->line_total,
             ]) ?? collect();
 
-        return view('public.track', [
+        return view('track', [
             'wo'    => $wo,
             'items' => $items,
             'showing' => $wo->woItems->isNotEmpty() ? 'wo' : 'estimate',
