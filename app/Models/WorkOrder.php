@@ -76,9 +76,24 @@ class WorkOrder extends Model
     }
 
     public function intake()
-{
-    return $this->hasOne(Intake::class, 'converted_work_order_id');
-}
+    {
+        return $this->hasOne(Intake::class, 'converted_work_order_id');
+    }
+
+    public function estimates()
+    {
+        return $this->hasMany(Estimate::class);
+    }
+
+    public function latestEstimate()  // pošalji iz webhook-a received_at
+    {
+        return $this->hasOne(Estimate::class)->latestOfMany('received_at');
+    }
+
+    public function woItems()         // postojeća tabela stavki naloga
+    {
+        return $this->hasMany(WoItem::class);
+    }
 
 
     // Helper label (ako želiš)

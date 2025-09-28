@@ -34,10 +34,10 @@ class Intake extends Model
     }
 
     //ovo kasnije obrisati
-    public function bike()
-    {
-        return $this->belongsTo(Bike::class);
-    }
+    // public function bike()
+    // {
+    //     return $this->belongsTo(Bike::class);
+    // }
 
     public function creator()
     {

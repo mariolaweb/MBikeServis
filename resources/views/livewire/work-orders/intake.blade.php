@@ -64,7 +64,7 @@
             <div class="block text-xs text-gray-600">Kategorija *</div>
             <div class="flex flex-wrap gap-2">
                 @php
-                $cats = [
+                    $cats = [
                         'bike' => 'Bicikl',
                         'e-bike' => 'E-bicikl',
                         'scooter' => 'Trotinet',
@@ -94,8 +94,7 @@
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="block text-xs text-gray-600">Brend *</label>
-                    <input type="text" wire:model="gear_brand" required
-                        class="w-full px-3 py-2 mt-1 border rounded">
+                    <input type="text" wire:model="gear_brand" required class="w-full px-3 py-2 mt-1 border rounded">
                     @error('gear_brand')
                         <div class="mt-1 text-xs text-red-600">{{ $message }}</div>
                     @enderror
@@ -322,6 +321,74 @@
         @endif
 
 
+        @php
+            $items = $this->displayItems; // accessor
+            $showing = $items->first()['type'] ?? null; // 'wo' ili 'estimate'
+        @endphp
+
+        {{-- Ako još nema ni wo_items ni estimate_items --}}
+        @if (is_null($showing))
+            <div class="px-4 py-3 mb-4 border rounded-lg bg-slate-50" wire:poll.5s>
+                <p class="font-semibold">Čekamo ERP ponudu…</p>
+                <p class="text-sm text-gray-600">Osvježava se automatski čim stigne.</p>
+            </div>
+        @endif
+
+        @if ($showing === 'estimate')
+            <div class="px-4 py-3 mb-4 border rounded-lg bg-amber-50">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-semibold">ERP ponuda (estimate)</p>
+                        <p class="text-sm text-gray-600">Dok nema konačnih stavki, prikazuju se stavke iz ERP ponude.
+                        </p>
+                    </div>
+                    @if ($canAcceptEstimate)
+                        <div class="flex gap-2">
+                            <button wire:click="acceptEstimate"
+                                class="px-3 py-2 text-white bg-green-600 rounded">Prihvati</button>
+                            <button wire:click="declineEstimate"
+                                class="px-3 py-2 text-white bg-red-600 rounded">Odbij</button>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @elseif ($showing === 'wo')
+            <div class="px-4 py-3 mb-4 border rounded-lg bg-emerald-50">
+                <p class="font-semibold">Konačne stavke naloga</p>
+                <p class="text-sm text-gray-600">Ovo ulazi u obračun i račun.</p>
+            </div>
+        @endif
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="text-left border-b">
+                        <th class="py-2 pr-4">Šifra</th>
+                        <th class="py-2 pr-4">Opis</th>
+                        <th class="py-2 pr-4">Kol.</th>
+                        <th class="py-2 pr-4">Cijena</th>
+                        <th class="py-2 pr-4 text-right">Iznos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($items as $r)
+                        <tr class="border-b">
+                            <td class="py-2 pr-4">{{ $r['sku'] }}</td>
+                            <td class="py-2 pr-4">{{ $r['name'] }}</td>
+                            <td class="py-2 pr-4">{{ number_format($r['qty'], 2, ',', '.') }}</td>
+                            <td class="py-2 pr-4">{{ number_format($r['unit_price'], 2, ',', '.') }}</td>
+                            <td class="py-2 pr-4 text-right">{{ number_format($r['line_total'], 2, ',', '.') }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td class="py-4 text-gray-500" colspan="5">Nema stavki za prikaz.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+
         {{-- Kontakt ERP --}}
         <div class="w-full mx-auto md:w-2/3 lg:w-1/2">
             @if ($editing)
@@ -341,7 +408,6 @@
             @endif
 
         </div>
-
 
         <div class="flex justify-end">
             <button type="{{ $canSubmit ? 'submit' : 'button' }}" @disabled(!$canSubmit)

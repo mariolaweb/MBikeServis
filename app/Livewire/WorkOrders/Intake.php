@@ -22,6 +22,7 @@ class Intake extends Component
 {
     public ?int $modelId = null;
     public bool $formLoaded = false;
+    public bool $canAcceptEstimate = false;
 
     // Customer
     #[Validate('required|string|min:2')]
@@ -150,8 +151,6 @@ class Intake extends Component
     }
 
 
-
-
     protected function loadModel(int $id): void
     {
         $wo = WorkOrder::with(['customer', 'gear', 'location', 'intake.gear'])->findOrFail($id);
@@ -237,6 +236,8 @@ class Intake extends Component
 
         $canAssign = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ?? false;
 
+        $canAcceptEstimate = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false;
+
         $technicians = collect();
         if ($this->locId) {
             $technicians = User::role('serviser')
@@ -252,6 +253,7 @@ class Intake extends Component
             'canAssign',
             'technicians',
             'editing',
+            'canAcceptEstimate',
         ));
     }
 
@@ -522,5 +524,110 @@ class Intake extends Component
         }
 
         return $number;
+    }
+
+    public function acceptEstimate(): void
+    {
+        if (! $this->modelId) return;
+
+        $user = Auth::user();
+        if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
+
+        DB::transaction(function () {
+            $wo  = WorkOrder::with(['latestEstimate.items', 'woItems'])->findOrFail($this->modelId);
+            $est = $wo->latestEstimate;
+
+            if (! $est || $est->items->isEmpty()) return;
+
+            // Kopiraj estimate_items → wo_items
+            foreach ($est->items as $row) {
+                $wo->items()->create([
+                    'sku'        => $row->sku,
+                    'name'       => $row->name,
+                    'kind'       => null,                  // ako budeš razdvajao part/service
+                    'qty'        => $row->qty,
+                    'unit_price' => $row->unit_price,
+                    'added_by'   => Auth::id(),
+                    // line_total se računa u WoItem::booted()
+                ]);
+            }
+
+            // Označi estimate prihvaćenim
+            $est->update([
+                'accepted_by' => Auth::id(),
+                'accepted_at' => now(),
+                'status'      => 'accepted',
+            ]);
+
+            // (opciono) promijeni status WO
+            $wo->update(['status' => WorkOrderStatus::IN_PROGRESS]);
+        });
+
+        $this->dispatch('toast', type: 'success', message: 'Ponuda prihvaćena – stavke prebačene u nalog.');
+    }
+
+    public function declineEstimate(): void
+    {
+        if (! $this->modelId) return;
+
+        $user = Auth::user();
+        if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
+
+        $wo  = WorkOrder::with(['latestEstimate'])->find($this->modelId);
+        $est = $wo?->latestEstimate;
+        if (! $est) return;
+
+        $est->update([
+            'accepted_by' => null,
+            'accepted_at' => null,
+            'status'      => 'declined',
+        ]);
+
+        $this->dispatch('toast', type: 'info', message: 'Ponuda odbijena.');
+    }
+
+    public function getDisplayItemsProperty()
+    {
+        // Ako nismo u editu ili nije učitan WO – nema ništa
+        if (! $this->modelId ?? null) {
+            return collect();
+        }
+
+        // Učitaj svježe relacije potrebne za prikaz
+        $wo = WorkOrder::with([
+            'woItems' => fn($q) => $q->active(),   // samo aktivne wo stavke
+            'latestEstimate.items',
+        ])->find($this->modelId);
+
+        if (! $wo) {
+            return collect();
+        }
+
+        // 1) Ako postoje wo_items → oni imaju prioritet
+        if ($wo->woItems->isNotEmpty()) {
+            return $wo->woItems->map(fn($i) => [
+                'type'       => 'wo',
+                'sku'        => $i->sku,
+                'name'       => $i->name,
+                'qty'        => (float)$i->qty,
+                'unit_price' => (float)$i->unit_price,
+                'line_total' => (float)$i->line_total,
+            ]);
+        }
+
+        // 2) Inače prikaži estimate_items iz najnovijeg estimate-a
+        $est = $wo->latestEstimate;
+        if ($est && $est->items->isNotEmpty()) {
+            return $est->items->map(fn($i) => [
+                'type'       => 'estimate',
+                'sku'        => $i->sku,
+                'name'       => $i->name,
+                'qty'        => (float)$i->qty,
+                'unit_price' => (float)$i->unit_price,
+                'line_total' => (float)$i->line_total,
+            ]);
+        }
+
+        return collect();
     }
 }

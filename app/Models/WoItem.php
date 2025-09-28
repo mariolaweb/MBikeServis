@@ -31,8 +31,6 @@ class WoItem extends Model
         'removed_at' => 'datetime',
     ];
 
-    /* -------------------- Relationships -------------------- */
-
     public function workOrder()
     {
         return $this->belongsTo(WorkOrder::class);
@@ -47,8 +45,6 @@ class WoItem extends Model
     {
         return $this->belongsTo(User::class, 'removed_by');
     }
-
-    /* -------------------- Scopes -------------------- */
 
     // Samo aktivne (neuklonjene) stavke
     public function scopeActive(Builder $q): Builder
@@ -69,11 +65,6 @@ class WoItem extends Model
         static::saving(function (WoItem $item) {
             // Normalizuj prazne stringove na null
             if ($item->sku === '') $item->sku = null;
-
-            // Ako koristiš enum cast, dopusti null vrijednost
-            if ($item->kind instanceof WoItemKind === false && empty($item->kind)) {
-                $item->kind = null;
-            }
 
             // Sigurna matematika: qty * unit_price -> line_total
             // Castovi već osiguravaju decimal:2
