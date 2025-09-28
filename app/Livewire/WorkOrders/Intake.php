@@ -12,6 +12,7 @@ use App\Models\Location;
 use App\Models\WorkOrder;
 use Illuminate\Support\Str;
 use App\Enums\WorkOrderStatus;
+use App\Services\QrCodeService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,9 @@ class Intake extends Component
     public ?int $assigned_user_id = null;
 
     public ?int $locId = null;
+    public string $qrSvgPublicPath = '';
+    public int $workOrderId;
+
 
 
     public function startErpEstimate(): mixed
@@ -156,6 +160,8 @@ class Intake extends Component
     {
         $wo = WorkOrder::with(['customer', 'gear', 'location', 'intake.gear'])->findOrFail($id);
 
+        $this->workOrderId = $wo->id;
+
         $this->locId          = $wo->location_id;
         $this->customer_name  = (string)$wo->customer?->name;
         $this->customer_phone = $wo->customer?->phone;
@@ -192,6 +198,13 @@ class Intake extends Component
         }
 
         $this->assigned_user_id = $wo->assigned_user_id;
+
+        // ✅ Generisanje QR koda na kraju
+        $qr = app(QrCodeService::class);
+        $this->qrSvgPublicPath = $qr->makeForPublicToken(
+            $wo->public_track_url,
+            $wo->public_token
+        );
     }
 
     //Resetovanje svih polja kada se prebacujemo iz jednog radnog naloga u drugi
@@ -398,6 +411,7 @@ class Intake extends Component
                         'assigned_user_id' => $this->assigned_user_id,
                         'status'           => WorkOrderStatus::RECEIVED->value,
                         'created_by'       => $user?->id,
+                        'public_token'     => (string) Str::ulid(),   // ✅ DODANO
                     ]);
 
                     // Veži intake → WO

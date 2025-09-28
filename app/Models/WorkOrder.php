@@ -5,14 +5,16 @@ namespace App\Models;
 use App\Enums\WorkOrderStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WorkOrder extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
     // use LocationScoped; // ⬅️ uključi kada želiš globalni scope po sesijskoj lokaciji
 
     protected $fillable = [
         'number',
+        'public_token',
         'location_id',
         'customer_id',
         'gear_id',
@@ -21,6 +23,8 @@ class WorkOrder extends Model
         'started_at',
         'completed_at',
         'delivered_at',
+        'cancelled_at',
+        'public_token_disabled_at',
         'total_elapsed_minutes',
         'notes',
         'created_by',
@@ -43,12 +47,6 @@ class WorkOrder extends Model
     {
         return $this->belongsTo(Customer::class);
     }
-
-    //ovo kasnije obrisati
-    // public function bike()
-    // {
-    //     return $this->belongsTo(Bike::class);
-    // }
 
     public function gear()
     {
@@ -94,6 +92,13 @@ class WorkOrder extends Model
     {
         return $this->hasMany(WoItem::class);
     }
+
+    //dio za token i QR kod
+    public function getPublicTrackUrlAttribute(): string
+    {
+        return route('workorders.track', $this->public_token);
+    }
+
 
 
     // Helper label (ako želiš)

@@ -30,6 +30,24 @@
         @endif
     </div>
 
+<div class="flex items-center justify-center w-1/2 py-4 mx-auto space-x-5">
+    {{-- QR preview + download u admin edit view --}}
+@if(!empty($qrSvgPublicPath))
+  <div class="p-2 bg-white border-8 shadow w-44 h-44 rounded-2xl">
+    <img src="{{ asset($qrSvgPublicPath) }}" alt="QR" class="object-contain w-full h-full" />
+  </div>
+
+  <div class="flex flex-col items-center gap-4">
+    <a href="{{ asset($qrSvgPublicPath) }}" download class="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">
+      Preuzmi SVG
+    </a>
+    <a href="{{ route('admin.print.label', $workOrderId) }}" class="px-3 py-1.5 rounded bg-gray-200 text-sm">
+      Print naljepnica
+    </a>
+  </div>
+@endif
+</div>
+
     {{-- Forma --}}
     @php $canSubmit = (bool) $location; @endphp
     <form wire:submit.prevent="{{ $canSubmit ? 'save' : '' }}" class="grid gap-6 p-6 bg-white border rounded-2xl">
