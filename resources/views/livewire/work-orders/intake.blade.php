@@ -324,6 +324,7 @@
         @php
             $items = $this->displayItems; // accessor
             $showing = $items->first()['type'] ?? null; // 'wo' ili 'estimate'
+            $pending = $this->pendingEstimate;
         @endphp
 
         {{-- Ako još nema ni wo_items ni estimate_items --}}
@@ -357,6 +358,27 @@
                 <p class="font-semibold">Konačne stavke naloga</p>
                 <p class="text-sm text-gray-600">Ovo ulazi u obračun i račun.</p>
             </div>
+
+            {{-- ➕ Novi dodatni estimate (pending) – prikaži kao banner uz wo_items --}}
+            @if ($pending && $pending->items->isNotEmpty() && ($canAcceptEstimate ?? false))
+                <div class="px-4 py-3 mb-4 border rounded-lg bg-amber-50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="font-semibold">Nova ERP ponuda (dodatne stavke)</p>
+                            <p class="text-sm text-gray-600">
+                                Stigle su dodatne stavke iz ERP-a ({{ $pending->items->count() }}).
+                                Prihvatom će se dodati na postojeći nalog.
+                            </p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button wire:click="acceptEstimate"
+                                class="px-3 py-2 text-white bg-green-600 rounded">Prihvati</button>
+                            <button wire:click="declineEstimate"
+                                class="px-3 py-2 text-white bg-red-600 rounded">Odbij</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
         @endif
 
         {{-- Spisak dijelova i usluga --}}
@@ -389,8 +411,6 @@
             </table>
         </div>
 
-        {{-- privremena dijagnostika --}}
-{{-- @dump($showing, $this->canAcceptEstimate) --}}
 
 
         {{-- Kontakt ERP --}}

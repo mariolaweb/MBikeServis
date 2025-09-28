@@ -6,9 +6,10 @@ use App\Models\Gear;
 use App\Models\User;
 use Livewire\Component;
 use App\Models\Customer;
+use App\Models\Estimate;
 use App\Models\Location;
-use App\Models\WorkOrder;
 
+use App\Models\WorkOrder;
 use Illuminate\Support\Str;
 use App\Enums\WorkOrderStatus;
 use Livewire\Attributes\Layout;
@@ -253,7 +254,7 @@ class Intake extends Component
             'canAssign',
             'technicians',
             'editing',
-           // 'canAcceptEstimate',
+            // 'canAcceptEstimate',
         ));
     }
 
@@ -588,6 +589,19 @@ class Intake extends Component
 
         $this->dispatch('toast', type: 'info', message: 'Ponuda odbijena.');
     }
+
+    // kada na već postojeće dijelove u nalogu dodajemo nove, pa dok ih ne prihvatimo
+    public function getPendingEstimateProperty()
+    {
+        if (! $this->modelId) return null;
+
+        return Estimate::where('work_order_id', $this->modelId)
+            ->where('status', 'pending')
+            ->orderByDesc('received_at')
+            ->with('items')
+            ->first();
+    }
+
 
     public function getDisplayItemsProperty()
     {
