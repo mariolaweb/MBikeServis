@@ -156,11 +156,6 @@ class Intake extends Component
     {
         $wo = WorkOrder::with(['customer', 'gear', 'location', 'intake.gear'])->findOrFail($id);
 
-        //     dd([
-        //     'wo'   => $wo->toArray(),
-        //     'gear' => $wo->gear?->toArray(),
-        // ]);
-
         $this->locId          = $wo->location_id;
         $this->customer_name  = (string)$wo->customer?->name;
         $this->customer_phone = $wo->customer?->phone;
@@ -199,15 +194,69 @@ class Intake extends Component
         $this->assigned_user_id = $wo->assigned_user_id;
     }
 
+    //Resetovanje svih polja kada se prebacujemo iz jednog radnog naloga u drugi
+    protected function resetFormForNewModel(?int $newId): void
+    {
+        // resetuj sve što je vezano za prethodni nalog
+        $this->reset([
+            'formLoaded',
+            // Customer
+            'customer_name',
+            'customer_phone',
+            // Gear osnovno
+            'gear_category',
+            'gear_brand',
+            'gear_model',
+            'gear_serial',
+            'gear_notes',
+            // Gear atributi
+            'bike_wheel_size',
+            'bike_frame_size',
+            'ebike_motor_brand',
+            'ebike_motor_model',
+            'ebike_battery_capacity_wh',
+            'ebike_battery_serial',
+            'scooter_brand',
+            'scooter_model',
+            'scooter_battery_wh',
+            'ski_length_cm',
+            'ski_binding',
+            'snow_length_cm',
+            'snow_stance',
+            // Assignment
+            'assigned_user_id',
+            // Lokacija
+            'locId',
+        ]);
+
+        $this->modelId   = $newId;
+        $this->formLoaded = false;
+
+        if ($this->modelId) {
+            // svježe učitaj iz baze
+            $this->loadModel($this->modelId);
+            $this->formLoaded = true;
+        }
+    }
+
     #[Layout('layouts.app')]
     public function render()
     {
         $user = Auth::user();
         $isAdminOwner = $user?->hasAnyRole(['master-admin', 'vlasnik']) ?? false;
 
-        if ($this->modelId === null) {
-            $routeId = request()->route('workorder');
-            $this->modelId = $routeId ? (int)$routeId : null;
+        // if ($this->modelId === null) {
+        //     $routeId = request()->route('workorder');
+        //     $this->modelId = $routeId ? (int)$routeId : null;
+        // }
+
+        // Izmjena da nam se nova ponuda ne prikazuje i u drugom wo
+        $currentRouteId = request()->route('workorder');
+        $currentRouteId = $currentRouteId ? (int)$currentRouteId : null;
+
+        if ($currentRouteId !== $this->modelId) {
+            // promjena naloga → reset ključnih polja i učitaj novi model
+            $this->resetFormForNewModel($currentRouteId);
         }
         $editing = (bool)$this->modelId;
 
@@ -438,7 +487,6 @@ class Intake extends Component
         });
     }
 
-
     // Metoda koja briše stare vrijednosti atributa kada promijeniš kategoriju
     public function updatedGearCategory(string $value): void
     {
@@ -601,7 +649,6 @@ class Intake extends Component
             ->with('items')
             ->first();
     }
-
 
     public function getDisplayItemsProperty()
     {
