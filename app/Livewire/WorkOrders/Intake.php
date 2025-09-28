@@ -236,7 +236,7 @@ class Intake extends Component
 
         $canAssign = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ?? false;
 
-        $canAcceptEstimate = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false;
+        $this->canAcceptEstimate = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false;
 
         $technicians = collect();
         if ($this->locId) {
@@ -253,7 +253,7 @@ class Intake extends Component
             'canAssign',
             'technicians',
             'editing',
-            'canAcceptEstimate',
+           // 'canAcceptEstimate',
         ));
     }
 
