@@ -181,7 +181,7 @@
                     </div>
                 @else
                     <label class="block text-xs text-gray-600">Serviser</label>
-                    <select wire:model="technicianId" class="w-full px-3 py-2 mt-1 border rounded">
+                    <select wire:model.live="technicianId" class="w-full px-3 py-2 mt-1 border rounded">
                         <option value="">— Odaberi servisera —</option>
                         @foreach ($technicians as $tech)
                             <option value="{{ $tech['id'] }}">{{ $tech['name'] }}</option>

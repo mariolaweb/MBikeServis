@@ -466,7 +466,6 @@ class Intake extends Component
         $this->resetValidation();
     }
 
-
     private function buildAttributesArray(): array
     {
         return match ($this->gear_category) {

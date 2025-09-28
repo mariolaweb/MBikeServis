@@ -31,6 +31,7 @@ class WorkOrder extends Model
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'delivered_at' => 'datetime',
+        'assigned_user_id' => 'integer',
     ];
 
     public function location()

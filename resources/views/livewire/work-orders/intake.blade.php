@@ -298,7 +298,7 @@
         @if ($location)
             <div>
                 <div class="mb-2 text-sm font-semibold text-gray-700">Dodjela servisera (opciono)</div>
-                <select wire:model.defer="assigned_user_id" class="w-full px-3 py-2 border rounded">
+                <select wire:model="assigned_user_id" class="w-full px-3 py-2 border rounded">
                     @if ($isAssigned)
                         <option value="">— Ukloni postojećeg —</option>
                     @else
@@ -341,8 +341,6 @@
             @endif
 
         </div>
-
-
 
 
         <div class="flex justify-end">

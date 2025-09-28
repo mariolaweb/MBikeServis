@@ -120,6 +120,7 @@ class Board extends Component
     {
         $this->intakeIdForAssign = $intakeId;
         $this->technicianId = null;
+        $this->resetErrorBag();    // ⇐ očisti stare greške
         $this->showAssignModal = true;
     }
 
@@ -131,92 +132,88 @@ class Board extends Component
         $this->convertIntake($intakeId, $me->id);
     }
 
-    public function convertIntake(int $intakeId, ?int $technicianId = null): void
-    {
-        $user = Auth::user();
-        if (! $user) abort(403);
+    public function convertIntake(int $intakeId): void
+{
+    $technicianId = $this->technicianId;   // ⇐ UZMI IZ STATE-a, NE IZ ARGUMENTA
 
-        // Lokacija iz sessiona (admin/owner) ili iz user profila
-        $locId = $user->hasAnyRole(['master-admin', 'vlasnik'])
-            ? session('current_location')
-            : ($user->location_id ?? null);
+    $user         = Auth::user();
+    $isAdminOwner = $user?->hasAnyRole(['master-admin', 'vlasnik']) ?? false;
+    $isManager    = $user?->hasRole('menadzer') ?? false;
 
-        if (! $locId) {
-            $this->addError('location', 'Nije izabrana poslovnica.');
-            return;
-        }
+    // (po tvojoj želji: dozvoli SVIMA dodjelu)
+    // if (!($isAdminOwner || $isManager)) abort(403);
 
-        $locId = Location::where('id', $locId)->where('is_active', true)->value('id');
-        if (! $locId) {
-            $this->addError('location', 'Nepostojeća ili neaktivna poslovnica.');
-            return;
-        }
-
-        if (! $technicianId) {
-            $this->addError('technician', 'Odaberi servisera.');
-            return;
-        }
-
-        // Serviser mora biti iz iste poslovnice
-        $techOk = User::role('serviser')
-            ->where('id', $technicianId)
-            ->where('location_id', $locId)
-            ->exists();
-        if (! $techOk) {
-            $this->addError('technician', 'Serviser nije iz ove poslovnice.');
-            return;
-        }
-
-        DB::transaction(function () use ($intakeId, $locId, $user, $technicianId) {
-            $intake = IntakeModel::query()
-                ->where('id', $intakeId)
-                ->where('location_id', $locId)
-                ->whereNull('converted_at')
-                ->lockForUpdate()
-                ->first();
-
-            if (! $intake) {
-                $this->addError('intake', 'Prijem nije pronađen ili je već konvertovan.');
-                return;
-            }
-
-            $loc    = Location::find($locId);
-            $base   = ($loc?->code ?? 'WO') . '-' . now()->format('Ymd-His');
-            $number = $base;
-            $tries  = 0;
-            while (WorkOrder::where('number', $number)->exists() && $tries < 3) {
-                $number = $base . '-' . substr(strtoupper(bin2hex(random_bytes(1))), 0, 2);
-                $tries++;
-            }
-
-            $wo = WorkOrder::create([
-                'number'              => $number,
-                'location_id'         => $locId,
-                'customer_id'         => $intake->customer_id,
-                'gear_id'             => $intake->gear_id, // ⬅️ gear
-                'assigned_user_id'    => $technicianId,
-                'assigned_at'         => now(),
-                'assigned_by_user_id' => $user->id,
-                'status'              => WorkOrderStatus::RECEIVED->value,
-                'created_by'          => $user->id,
-                'intake_id'           => $intake->id,
-            ]);
-
-            $intake->update([
-                'converted_work_order_id' => $wo->id,
-                'converted_at'            => now(),
-                'converted_by_user_id'    => $user->id,
-            ]);
-
-            session()->flash('ok', 'Radni nalog kreiran.');
-            $this->showAssignModal = false;
-
-            $this->resetPage('intakes_page');
-            $this->resetPage('wo_page');
-
-            $this->redirectRoute('workorders-edit', ['workorder' => $wo->id]);
-        });
+    $locId = $isAdminOwner ? session('current_location') : ($user?->location_id ?? null);
+    if (!$locId) {
+        $this->addError('location', 'Nije izabrana poslovnica.');
+        return;
     }
+    $locId = Location::where('id', $locId)->where('is_active', true)->value('id');
+    if (!$locId) {
+        $this->addError('location', 'Nepostojeća ili neaktivna poslovnica.');
+        return;
+    }
+
+    if (!$technicianId) {
+        $this->addError('technician', 'Odaberi servisera.');
+        return;
+    }
+
+    $techOk = User::role('serviser')
+        ->where('id', $technicianId)
+        ->where('location_id', $locId)
+        ->exists();
+
+    if (!$techOk) {
+        $this->addError('technician', 'Serviser nije iz ove poslovnice.');
+        return;
+    }
+
+    DB::transaction(function () use ($intakeId, $locId, $user, $technicianId) {
+        $intake = IntakeModel::query()
+            ->where('id', $intakeId)
+            ->where('location_id', $locId)
+            ->whereNull('converted_at')
+            ->lockForUpdate()
+            ->first();
+
+        if (!$intake) {
+            $this->addError('intake', 'Prijem nije pronađen ili je već konvertovan.');
+            return;
+        }
+
+        $loc    = Location::find($locId);
+        $base   = ($loc?->code ?? 'WO') . '-' . now()->format('Ymd-His');
+        $number = $base;
+        $tries  = 0;
+        while (WorkOrder::where('number', $number)->exists() && $tries < 3) {
+            $number = $base . '-' . substr(strtoupper(bin2hex(random_bytes(1))), 0, 2);
+            $tries++;
+        }
+
+        $wo = WorkOrder::create([
+            'number'           => $number,
+            'location_id'      => $locId,
+            'customer_id'      => $intake->customer_id,
+            'gear_id'          => $intake->gear_id,
+            'assigned_user_id' => $technicianId,
+            'status'           => WorkOrderStatus::RECEIVED->value,
+            'created_by'       => $user?->id,
+        ]);
+
+        $intake->update([
+            'converted_work_order_id' => $wo->id,
+            'converted_at'            => now(),
+        ]);
+
+        session()->flash('ok', 'Radni nalog kreiran i serviser dodijeljen.');
+        $this->showAssignModal = false;
+        $this->technicianId = null;
+        $this->resetPage('intakes_page');
+        $this->resetPage('wo_page');
+        $this->redirectRoute('workorders-edit', ['workorder' => $wo->id]);
+    });
+}
 
 
     // Reset paginacija na promjenu filtera
