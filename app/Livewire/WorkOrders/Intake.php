@@ -537,7 +537,10 @@ class Intake extends Component
             $wo  = WorkOrder::with(['latestEstimate.items', 'woItems'])->findOrFail($this->modelId);
             $est = $wo->latestEstimate;
 
-            if (! $est || $est->items->isEmpty()) return;
+            // zaštite: mora postojati pending/pogodna ponuda i da WO nema konačne stavke
+            if (! $est || $est->items->isEmpty() || $wo->items()->active()->exists() || $est->status === 'accepted') {
+                return;
+            }
 
             // Kopiraj estimate_items → wo_items
             foreach ($est->items as $row) {

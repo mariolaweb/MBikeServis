@@ -342,7 +342,11 @@
                         <p class="text-sm text-gray-600">Dok nema konačnih stavki, prikazuju se stavke iz ERP ponude.
                         </p>
                     </div>
-                    @if ($canAcceptEstimate)
+                    @php
+        // prikaži dugme ako je korisnik ovlašten i WO još nema wo_items
+        $canShowAccept = ($canAcceptEstimate ?? false) && ($showing === 'estimate');
+      @endphp
+                    @if($canShowAccept)
                         <div class="flex gap-2">
                             <button wire:click="acceptEstimate"
                                 class="px-3 py-2 text-white bg-green-600 rounded">Prihvati</button>
@@ -359,6 +363,7 @@
             </div>
         @endif
 
+        {{-- Spisak dijelova i usluga --}}
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead>
