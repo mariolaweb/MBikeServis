@@ -60,34 +60,32 @@
 
         {{-- Kategorija --}}
         {{-- Kategorije (pills) --}}
-<div class="space-y-2">
-  <div class="block text-xs text-gray-600">Kategorija *</div>
-  <div class="flex flex-wrap gap-2">
-    @php $cats = [
-      'bike' => 'Bicikl',
-      'e-bike' => 'E-bicikl',
-      'scooter' => 'Trotinet',
-      'ski' => 'Skije',
-      'snowboard' => 'Snowboard',
-      'other' => 'Ostalo',
-    ]; @endphp
+        <div class="space-y-2">
+            <div class="block text-xs text-gray-600">Kategorija *</div>
+            <div class="flex flex-wrap gap-2">
+                @php
+                $cats = [
+                        'bike' => 'Bicikl',
+                        'e-bike' => 'E-bicikl',
+                        'scooter' => 'Trotinet',
+                        'ski' => 'Skije',
+                        'snowboard' => 'Snowboard',
+                        'other' => 'Ostalo',
+                ]; @endphp
 
-    @foreach($cats as $val => $label)
-      <label
-        class="cursor-pointer inline-flex items-center rounded-full px-3 py-1 text-sm
-               border transition
-               {{ $gear_category === $val ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400' }}">
-        <input type="radio" class="sr-only"
-               name="gear_category"
-               value="{{ $val }}"
-               wire:model.live="gear_category"  {{-- ← LIVE! odmah šalje promjenu --}}
-        />
-        {{ $label }}
-      </label>
-    @endforeach
-  </div>
-  @error('gear_category') <div class="mt-1 text-xs text-red-600">{{ $message }}</div> @enderror
-</div>
+                @foreach ($cats as $val => $label)
+                    <label
+                        class="{{ $gear_category === $val ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400' }} inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-sm transition">
+                        <input type="radio" class="sr-only" name="gear_category" value="{{ $val }}"
+                            wire:model.live="gear_category" {{-- ← LIVE! odmah šalje promjenu --}} />
+                        {{ $label }}
+                    </label>
+                @endforeach
+            </div>
+            @error('gear_category')
+                <div class="mt-1 text-xs text-red-600">{{ $message }}</div>
+            @enderror
+        </div>
 
 
         {{-- Oprema (osnovna polja) --}}
@@ -322,6 +320,30 @@
                 @enderror
             </div>
         @endif
+
+
+        {{-- Kontakt ERP --}}
+        <div class="w-full mx-auto md:w-2/3 lg:w-1/2">
+            @if ($editing)
+                <div class="flex items-center justify-between pt-4 mt-2 border-t">
+                    <div class="text-xs text-gray-500">
+                        Test ERP integracije: otvori predračun za ovaj prijem.
+                    </div>
+                    <button type="button" wire:click="startErpEstimate" wire:loading.attr="disabled"
+                        class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                        Predračun u ERP-u
+                    </button>
+                </div>
+
+                @if (session('error'))
+                    <div class="px-3 py-2 mt-3 text-sm text-red-700 rounded bg-red-50">{{ session('error') }}</div>
+                @endif
+            @endif
+
+        </div>
+
+
+
 
         <div class="flex justify-end">
             <button type="{{ $canSubmit ? 'submit' : 'button' }}" @disabled(!$canSubmit)

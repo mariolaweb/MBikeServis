@@ -2,20 +2,21 @@
 
 namespace App\Livewire\WorkOrders;
 
+use App\Models\Gear;
+use App\Models\User;
 use Livewire\Component;
+use App\Models\Customer;
+use App\Models\Location;
+use App\Models\WorkOrder;
+
+use Illuminate\Support\Str;
+use App\Enums\WorkOrderStatus;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
-
-use App\Models\User;
-use App\Models\Gear;
-use App\Models\Customer;
-use App\Models\Location;
-use App\Models\WorkOrder;
+use Illuminate\Support\Facades\Http;
 use App\Models\Intake as IntakeModel;
-use App\Enums\WorkOrderStatus;
 
 class Intake extends Component
 {
@@ -76,7 +77,6 @@ class Intake extends Component
     #[Validate('nullable|string|max:60')]
     public ?string $scooter_model = null;
 
-
     // ski
     #[Validate('nullable|integer|between:100,210|required_if:gear_category,ski')]
     public ?int $ski_length_cm = null;
@@ -96,6 +96,51 @@ class Intake extends Component
     public ?int $assigned_user_id = null;
 
     public ?int $locId = null;
+
+
+    public function startErpEstimate(): mixed
+{
+    // radi samo na EDIT-u (postoji WO)
+    if (! $this->modelId) {
+        session()->flash('error', 'ERP: Nalog još nije kreiran.');
+        return null;
+    }
+
+    $wo = WorkOrder::select('id','intake_id')->find($this->modelId);
+    if (! $wo || ! $wo->intake_id) {
+        session()->flash('error', 'ERP: Prijem (intake) nije pronađen.');
+        return null;
+    }
+
+    $base   = rtrim(config('services.erp.base_url'), '/');   // npr. https://.../mock-erp
+    $token  = config('services.erp.token');
+    $return = rtrim(config('services.erp.redirect'), '/');   // npr. https://tvojapp.com
+
+    // gdje će ERP da nas vrati
+    $redirectUrl = $return . "/intakes/{$wo->intake_id}/estimate/return";
+
+    try {
+        $resp = Http::withToken($token)
+            ->acceptJson()
+            ->post($base . '/api/v1/sessions.php', [
+                'intake_id'    => $wo->intake_id,
+                'redirect_url' => $redirectUrl,
+            ]);
+
+        if (!$resp->ok() || empty($resp['session_url'])) {
+            session()->flash('error', 'ERP greška: HTTP ' . $resp->status() . ' — ' . mb_strimwidth($resp->body(), 0, 200, '…'));
+            return null;
+        }
+
+        // skok u ERP checkout/session
+        return $this->redirect($resp['session_url'], navigate: false);
+    } catch (\Throwable $e) {
+        session()->flash('error', 'ERP exception: ' . $e->getMessage());
+        return null;
+    }
+}
+
+
 
     protected function loadModel(int $id): void
     {
