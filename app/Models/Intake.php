@@ -22,18 +22,28 @@ class Intake extends Model
     {
         return $this->belongsTo(Location::class);
     }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
     }
+
+    public function gear()
+    {
+        return $this->belongsTo(Gear::class);
+    }
+
+    //ovo kasnije obrisati
     public function bike()
     {
         return $this->belongsTo(Bike::class);
     }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
     public function workOrder()
     {
         return $this->belongsTo(WorkOrder::class, 'converted_work_order_id');

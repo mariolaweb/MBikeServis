@@ -37,18 +37,28 @@ class WorkOrder extends Model
     {
         return $this->belongsTo(Location::class);
     }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);
     }
+
+    //ovo kasnije obrisati
     public function bike()
     {
         return $this->belongsTo(Bike::class);
     }
+
+    public function gear()
+    {
+        return $this->belongsTo(Gear::class);
+    }
+
     public function assignedUser()
     {
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -58,6 +68,12 @@ class WorkOrder extends Model
     {
         return $this->hasMany(WorkOrderPhoto::class);
     }
+
+    public function items()
+    {
+        return $this->hasMany(WoItem::class);
+    }
+
 
     // Helper label (ako želiš)
     // public function getStatusLabelAttribute(): string

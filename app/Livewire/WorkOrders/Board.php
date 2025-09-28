@@ -12,8 +12,6 @@ use App\Enums\WorkOrderStatus;
 use Livewire\Attributes\Layout;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-// ✨ ADDED: enum za status i helper
-use Illuminate\Support\Facades\Http;
 use App\Models\Intake as IntakeModel;
 
 class Board extends Component
@@ -21,63 +19,16 @@ class Board extends Component
     use WithPagination;
 
     // URL filteri
-    #[Url(as: 'scope')]    public string $scope = 'poslovnica';  // 'poslovnica' | 'moji' (za servisere)
-    #[Url(as: 'status')]   public ?string $status = null;        // filter statusa (opciono)
+    #[Url(as: 'scope')]  public string $scope = 'poslovnica';  // 'poslovnica' | 'moji'
+    #[Url(as: 'status')] public ?string $status = null;        // opcionalni filter statusa
 
     protected $paginationTheme = 'tailwind';
 
-    // ✨ ADDED: za modal „Dodijeli servisera & kreiraj nalog”
+    // Modal za „Dodijeli servisera & kreiraj nalog”
     public bool $showAssignModal = false;
     public ?int $intakeIdForAssign = null;
     public ?int $technicianId = null;
-    public $technicians = [];
-
-
-
-    //testiramo metod za predračun
-    public function startEstimate(int $intakeId)
-    {
-        // 1) URL-ovi i tokeni iz config/services.php
-        $base    = rtrim(config('services.erp.base_url'), '/');      // npr. https://bilijar.mariolaweb.com/mock-erp
-        $token   = config('services.erp.token');
-        $return  = rtrim(config('services.erp.redirect'), '/');      // npr. https://bikeservice.mariolaweb.com
-
-        // 2) Vrati se na tvoju rutu nakon potvrde
-        $redirectUrl = $return . "/intakes/{$intakeId}/estimate/return";
-
-        try {
-    $resp = Http::withOptions([
-                // privremeno za diag SSL/WAF probleme; POSLIJE vrati na true/izbaci
-                'verify' => false,
-            ])
-            ->withToken($token)
-            ->acceptJson()
-            ->post($base . '/api/v1/sessions.php', [
-                'intake_id'    => $intakeId,
-                'redirect_url' => $redirectUrl,
-            ]);
-
-    if (!$resp->ok() || empty($resp['session_url'])) {
-        // pokaži tačan status i kratko tijelo odgovora
-        session()->flash(
-            'error',
-            'ERP greška: HTTP '.$resp->status().' — '.mb_strimwidth($resp->body(), 0, 200, '…')
-        );
-        return;
-    }
-
-    return $this->redirect($resp['session_url'], navigate: false);
-
-} catch (\Throwable $e) {
-    // exception (DNS/SSL/timeout i sl.) — pokaži poruku
-    session()->flash('error', 'ERP exception: '.$e->getMessage());
-}
-
-    }
-
-
-
-
+    public array $technicians = [];
 
     #[Layout('layouts.app')]
     public function render()
@@ -89,33 +40,33 @@ class Board extends Component
 
         // Lokacija: owner/admin iz sessiona; ostali iz usera
         $locId = $isAdminOwner ? session('current_location') : ($user?->location_id ?? null);
-
         if ($locId) {
             $locId = Location::where('id', $locId)->where('is_active', true)->value('id');
         }
+
         $currentLocation = $locId
             ? Location::select('id', 'code', 'name', 'city')->find($locId)
             : null;
 
-        // --- PRIJEMI BEZ NALOGA (intakes.converted_at IS NULL) ---
+        // --- PRIJEMI BEZ NALOGA (converted_at IS NULL) ---
         $intakes = collect();
-        if (($isAdminOwner || $isManager) && $locId) {
+        if ($locId) {
             $intakes = IntakeModel::query()
-                ->with(['customer:id,name,phone', 'bike:id,brand,model,customer_id'])
+                ->with([
+                    'customer:id,name,phone',
+                    'gear:id,brand,model,customer_id',   // ⬅️ GEAR umjesto BIKE
+                ])
                 ->where('location_id', $locId)
                 ->whereNull('converted_at')
                 ->latest()
-                ->paginate(10, ['*'], 'intakes_page'); // ⬅️ odvojena paginacija za intakes
+                ->paginate(10, ['*'], 'intakes_page'); // odvojena paginacija
         }
 
-        // 🗑️ REMOVED: "NALOZI BEZ SERVISERA" međutabela ($pendingWo)
-        // Sada WO lista uključuje i one bez servisera.
-
-        // --- SVI RADNI NALOZI (SADA UKLJUČUJE I ONE BEZ SERVISERA) ---
+        // --- SVI RADNI NALOZI (uključuje i one bez servisera) ---
         $woQuery = WorkOrder::query()
             ->with([
                 'customer:id,name,phone',
-                'bike:id,brand,model,customer_id',
+                'gear:id,brand,model,customer_id',     // ⬅️ GEAR umjesto BIKE
                 'assignedUser:id,name',
             ])
             ->latest();
@@ -123,7 +74,7 @@ class Board extends Component
         if ($locId) {
             $woQuery->where('location_id', $locId);
         } else {
-            // owner/admin bez lokacije ne vidi ništa (da ne vidi "sve")
+            // owner/admin bez lokacije ne vidi ništa
             if ($isAdminOwner) {
                 $woQuery->whereRaw('1=0');
             } else {
@@ -131,23 +82,19 @@ class Board extends Component
             }
         }
 
-        // Globalni filter statusa (opciono)
+        // Filter statusa (ako je zadat kao string)
         if ($this->status) {
             $woQuery->where('status', $this->status);
         }
 
-        // Serviser: "moji" vs "poslovnica"
+        // Serviser: „moji” vs „poslovnica”
         if ($isServiser && $this->scope === 'moji') {
             $woQuery->where('assigned_user_id', $user->id);
         }
 
-        // 🔧 CHANGED: više NE isključujemo WO bez servisera
-        // (ranije je ovdje bio filter da ih izbaci jer su bili u posebnoj tabeli)
-        // $woQuery->where(function ($q) { ... })  // 🗑️ REMOVED
-
         $workOrders = $woQuery->paginate(10, ['*'], 'wo_page');
 
-        // ✨ ADDED: lista servisera za trenutnu lokaciju (za modal)
+        // Lista servisera za modal (trenutna lokacija)
         $this->technicians = [];
         if ($locId) {
             $this->technicians = User::role('serviser')
@@ -168,7 +115,7 @@ class Board extends Component
         ));
     }
 
-    // ✨ ADDED: otvori modal za dodjelu servisera prije kreiranja WO
+    // Otvori modal za izbor servisera i konverziju
     public function openAssignModal(int $intakeId): void
     {
         $this->intakeIdForAssign = $intakeId;
@@ -176,40 +123,46 @@ class Board extends Component
         $this->showAssignModal = true;
     }
 
-    // 🔧 CHANGED: konverzija sada ZAHTJEVA servisera i odmah kreira WO sa dodjelom
+    public function claimAndConvert(int $intakeId): void
+    {
+        $me = Auth::user();
+        if (! $me) abort(403);
+
+        $this->convertIntake($intakeId, $me->id);
+    }
+
     public function convertIntake(int $intakeId, ?int $technicianId = null): void
     {
-        $user         = Auth::user();
-        $isAdminOwner = $user?->hasAnyRole(['master-admin', 'vlasnik']) ?? false;
-        $isManager    = $user?->hasRole('menadzer') ?? false;
+        $user = Auth::user();
+        if (! $user) abort(403);
 
-        if (!($isAdminOwner || $isManager)) {
-            abort(403);
-        }
+        // Lokacija iz sessiona (admin/owner) ili iz user profila
+        $locId = $user->hasAnyRole(['master-admin', 'vlasnik'])
+            ? session('current_location')
+            : ($user->location_id ?? null);
 
-        $locId = $isAdminOwner ? session('current_location') : ($user?->location_id ?? null);
-        if (!$locId) {
+        if (! $locId) {
             $this->addError('location', 'Nije izabrana poslovnica.');
             return;
         }
+
         $locId = Location::where('id', $locId)->where('is_active', true)->value('id');
-        if (!$locId) {
+        if (! $locId) {
             $this->addError('location', 'Nepostojeća ili neaktivna poslovnica.');
             return;
         }
 
-        if (!$technicianId) {
+        if (! $technicianId) {
             $this->addError('technician', 'Odaberi servisera.');
             return;
         }
 
-        // Provjeri da je serviser iz iste poslovnice
+        // Serviser mora biti iz iste poslovnice
         $techOk = User::role('serviser')
             ->where('id', $technicianId)
             ->where('location_id', $locId)
             ->exists();
-
-        if (!$techOk) {
+        if (! $techOk) {
             $this->addError('technician', 'Serviser nije iz ove poslovnice.');
             return;
         }
@@ -219,59 +172,52 @@ class Board extends Component
                 ->where('id', $intakeId)
                 ->where('location_id', $locId)
                 ->whereNull('converted_at')
-                ->lockForUpdate() // ✨ ADDED: zaštita od dvoklika
+                ->lockForUpdate()
                 ->first();
 
-            if (!$intake) {
+            if (! $intake) {
                 $this->addError('intake', 'Prijem nije pronađen ili je već konvertovan.');
                 return;
             }
 
-            // Generiši broj WO (isti princip kao ranije)
             $loc    = Location::find($locId);
             $base   = ($loc?->code ?? 'WO') . '-' . now()->format('Ymd-His');
             $number = $base;
-
-            // Minimalni fallback da izbjegnemo rijedak sudar
-            $tries = 0;
+            $tries  = 0;
             while (WorkOrder::where('number', $number)->exists() && $tries < 3) {
                 $number = $base . '-' . substr(strtoupper(bin2hex(random_bytes(1))), 0, 2);
                 $tries++;
             }
 
             $wo = WorkOrder::create([
-                'number'           => $number,
-                'location_id'      => $locId,
-                'customer_id'      => $intake->customer_id,
-                'bike_id'          => $intake->bike_id,
-                // odmah dodjela servisera:
+                'number'              => $number,
+                'location_id'         => $locId,
+                'customer_id'         => $intake->customer_id,
+                'gear_id'             => $intake->gear_id, // ⬅️ gear
                 'assigned_user_id'    => $technicianId,
                 'assigned_at'         => now(),
-                'assigned_by_user_id' => $user?->id,
-                // status kroz enum value
-                'status'           => WorkOrderStatus::RECEIVED->value,
-                'created_by'       => $user?->id,
-                // (opciono) veza na intake, ako kolona postoji:
-                'intake_id'        => $intake->id,
+                'assigned_by_user_id' => $user->id,
+                'status'              => WorkOrderStatus::RECEIVED->value,
+                'created_by'          => $user->id,
+                'intake_id'           => $intake->id,
             ]);
 
             $intake->update([
                 'converted_work_order_id' => $wo->id,
                 'converted_at'            => now(),
-                'converted_by_user_id'    => $user?->id, // ✨ ADDED: audit ko je konvertovao
+                'converted_by_user_id'    => $user->id,
             ]);
 
-            session()->flash('ok', 'Radni nalog kreiran i serviser dodijeljen.');
+            session()->flash('ok', 'Radni nalog kreiran.');
             $this->showAssignModal = false;
 
-            // osvježi listu
             $this->resetPage('intakes_page');
             $this->resetPage('wo_page');
 
-            // redirect na Uredi
             $this->redirectRoute('workorders-edit', ['workorder' => $wo->id]);
         });
     }
+
 
     // Reset paginacija na promjenu filtera
     public function updatedScope()
