@@ -94,7 +94,7 @@
             <div class="grid gap-4 sm:grid-cols-2">
                 <div>
                     <label class="block text-xs text-gray-600">Brend *</label>
-                    <input type="text" wire:model.defer="gear_brand" required
+                    <input type="text" wire:model="gear_brand" required
                         class="w-full px-3 py-2 mt-1 border rounded">
                     @error('gear_brand')
                         <div class="mt-1 text-xs text-red-600">{{ $message }}</div>

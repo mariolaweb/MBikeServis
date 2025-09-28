@@ -12,10 +12,10 @@ class Intake extends Model
     protected $fillable = [
         'location_id',
         'customer_id',
-        'bike_id',
+        'gear_id',
         'created_by',
         'converted_work_order_id',
-        'converted_at',
+        'converted_at'
     ];
 
     public function location()

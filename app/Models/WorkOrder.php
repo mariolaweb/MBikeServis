@@ -15,7 +15,7 @@ class WorkOrder extends Model
         'number',
         'location_id',
         'customer_id',
-        'bike_id',
+        'gear_id',
         'assigned_user_id',
         'status',
         'started_at',
@@ -44,10 +44,10 @@ class WorkOrder extends Model
     }
 
     //ovo kasnije obrisati
-    public function bike()
-    {
-        return $this->belongsTo(Bike::class);
-    }
+    // public function bike()
+    // {
+    //     return $this->belongsTo(Bike::class);
+    // }
 
     public function gear()
     {
@@ -73,6 +73,11 @@ class WorkOrder extends Model
     {
         return $this->hasMany(WoItem::class);
     }
+
+    public function intake()
+{
+    return $this->hasOne(Intake::class, 'converted_work_order_id');
+}
 
 
     // Helper label (ako želiš)

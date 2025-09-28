@@ -14,6 +14,9 @@ class Estimate extends Model
         'subtotal',
         'tax',
         'total',
+        'work_order_id',
+        'accepted_by',
+        'accepted_at',
         'raw_json',
     ];
 

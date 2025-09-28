@@ -99,52 +99,67 @@ class Intake extends Component
 
 
     public function startErpEstimate(): mixed
-{
-    // radi samo na EDIT-u (postoji WO)
-    if (! $this->modelId) {
-        session()->flash('error', 'ERP: Nalog još nije kreiran.');
-        return null;
-    }
-
-    $wo = WorkOrder::select('id','intake_id')->find($this->modelId);
-    if (! $wo || ! $wo->intake_id) {
-        session()->flash('error', 'ERP: Prijem (intake) nije pronađen.');
-        return null;
-    }
-
-    $base   = rtrim(config('services.erp.base_url'), '/');   // npr. https://.../mock-erp
-    $token  = config('services.erp.token');
-    $return = rtrim(config('services.erp.redirect'), '/');   // npr. https://tvojapp.com
-
-    // gdje će ERP da nas vrati
-    $redirectUrl = $return . "/intakes/{$wo->intake_id}/estimate/return";
-
-    try {
-        $resp = Http::withToken($token)
-            ->acceptJson()
-            ->post($base . '/api/v1/sessions.php', [
-                'intake_id'    => $wo->intake_id,
-                'redirect_url' => $redirectUrl,
-            ]);
-
-        if (!$resp->ok() || empty($resp['session_url'])) {
-            session()->flash('error', 'ERP greška: HTTP ' . $resp->status() . ' — ' . mb_strimwidth($resp->body(), 0, 200, '…'));
+    {
+        // radi samo na EDIT-u (postoji WO)
+        if (! $this->modelId) {
+            session()->flash('error', 'ERP: Nalog još nije kreiran.');
             return null;
         }
 
-        // skok u ERP checkout/session
-        return $this->redirect($resp['session_url'], navigate: false);
-    } catch (\Throwable $e) {
-        session()->flash('error', 'ERP exception: ' . $e->getMessage());
-        return null;
+        $wo = WorkOrder::select('id')->find($this->modelId);
+        if (! $wo) {
+            session()->flash('error', 'ERP: Nalog nije pronađen.');
+            return null;
+        }
+
+        // pronađi pripadajući intake preko veze na intakes.converted_work_order_id
+        $intakeId = IntakeModel::where('converted_work_order_id', $wo->id)->value('id');
+
+        if (! $intakeId) {
+            // ako nalog nije nastao iz prijema, blokiraj ERP (preporuka: kreirati minimalni Intake prije ERP-a)
+            session()->flash('error', 'ERP: Prijem (intake) za ovaj nalog nije pronađen.');
+            return null;
+        }
+
+        $base   = rtrim(config('services.erp.base_url'), '/');   // npr. https://.../mock-erp
+        $token  = config('services.erp.token');
+        $return = rtrim(config('services.erp.redirect'), '/');   // npr. https://tvojapp.com
+
+        // gdje će ERP da nas vrati
+        $redirectUrl = $return . "/intakes/{$intakeId}/estimate/return";
+
+        try {
+            $resp = \Illuminate\Support\Facades\Http::withToken($token)
+                ->acceptJson()
+                ->post($base . '/api/v1/sessions.php', [
+                    'intake_id'    => $intakeId,
+                    'redirect_url' => $redirectUrl,
+                ]);
+
+            if (! $resp->ok() || empty($resp['session_url'])) {
+                session()->flash('error', 'ERP greška: HTTP ' . $resp->status() . ' — ' . mb_strimwidth($resp->body(), 0, 200, '…'));
+                return null;
+            }
+
+            // skok u ERP checkout/session
+            return $this->redirect($resp['session_url'], navigate: false);
+        } catch (\Throwable $e) {
+            session()->flash('error', 'ERP exception: ' . $e->getMessage());
+            return null;
+        }
     }
-}
+
 
 
 
     protected function loadModel(int $id): void
     {
-        $wo = WorkOrder::with(['customer', 'gear', 'location'])->findOrFail($id);
+        $wo = WorkOrder::with(['customer', 'gear', 'location', 'intake.gear'])->findOrFail($id);
+
+        //     dd([
+        //     'wo'   => $wo->toArray(),
+        //     'gear' => $wo->gear?->toArray(),
+        // ]);
 
         $this->locId          = $wo->location_id;
         $this->customer_name  = (string)$wo->customer?->name;
@@ -246,24 +261,29 @@ class Intake extends Component
 
         $user = Auth::user();
         $canReassignOnEdit = $user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ?? false;
-        $editing = (bool)$this->modelId;
+        $editing = (bool) $this->modelId;
 
         if ($editing) {
             $wo = WorkOrder::with(['customer', 'gear'])->findOrFail($this->modelId);
-            $locId = Location::where('id', $wo->location_id)->where('is_active', true)->value('id')
-                ?? abort(422, 'Nepostojeća ili neaktivna poslovnica.');
+
+            $locId = Location::where('id', $wo->location_id)
+                ->where('is_active', true)
+                ->value('id') ?? abort(422, 'Nepostojeća ili neaktivna poslovnica.');
         } else {
-            $locId = Location::where('id', $this->locId)->where('is_active', true)->value('id')
-                ?? abort(422, 'Nepostojeća ili neaktivna poslovnica.');
             $wo = null;
+
+            $locId = Location::where('id', $this->locId)
+                ->where('is_active', true)
+                ->value('id') ?? abort(422, 'Nepostojeća ili neaktivna poslovnica.');
         }
 
-        // Validacija da je serviser iz iste poslovnice
+        // Validacija da je serviser iz iste poslovnice (ako je izabran)
         if ($this->assigned_user_id) {
             $techOk = User::role('serviser')
                 ->where('id', $this->assigned_user_id)
                 ->where('location_id', $locId)
                 ->exists();
+
             if (!$techOk) {
                 return $this->addError('assigned_user_id', 'Serviser nije iz ove poslovnice.');
             }
@@ -272,19 +292,14 @@ class Intake extends Component
         $customerData = [
             'name'  => $this->customer_name,
             'phone' => $this->customer_phone,
+            // email/city/address/notes možeš dodati kad ih imaš u formi
         ];
 
-        $assignPayload = [
-            'assigned_user_id'    => $this->assigned_user_id ?: null,
-            'assigned_at'         => $this->assigned_user_id ? now() : null,
-            'assigned_by_user_id' => $this->assigned_user_id ? $user->id : null,
-        ];
+        return DB::transaction(function () use ($editing, $canReassignOnEdit, $locId, $user, $customerData, $wo) {
 
-        return DB::transaction(function () use ($editing, $canReassignOnEdit, $locId, $user, $customerData, $assignPayload, $wo) {
-
-            // -------- CREATE --------
+            /* ========== CREATE ========== */
             if (!$editing) {
-                // Customer (upsert po telefonu)
+                // 1) Kupac (upsert po telefonu)
                 if (!empty($customerData['phone'])) {
                     $customer = Customer::firstOrCreate(
                         ['phone' => $customerData['phone']],
@@ -294,10 +309,13 @@ class Intake extends Component
                         $customer->update(['name' => $customerData['name']]);
                     }
                 } else {
-                    $customer = Customer::create(['name' => $customerData['name'], 'phone' => null]);
+                    $customer = Customer::create([
+                        'name'  => $customerData['name'],
+                        'phone' => null,
+                    ]);
                 }
 
-                // Gear
+                // 2) Gear
                 $gear = Gear::create([
                     'customer_id'   => $customer->id,
                     'category'      => $this->gear_category,
@@ -308,48 +326,52 @@ class Intake extends Component
                     'notes'         => $this->gear_notes,
                 ]);
 
-                // Intake
+                // 3) Intake (postojeće kolone)
                 $intake = IntakeModel::create([
-                    'location_id'         => $locId,
-                    'received_by_user_id' => $user->id,
-                    'customer_id'         => $customer->id,
-                    'gear_id'             => $gear->id,
+                    'location_id' => $locId,
+                    'customer_id' => $customer->id,
+                    'gear_id'     => $gear->id,
+                    'created_by'  => $user?->id,
                 ]);
 
-                // Ako je serviser izabran → odmah WO
-                if (!empty($assignPayload['assigned_user_id'])) {
+                // 4) Ako je serviser izabran → odmah WO
+                if (!empty($this->assigned_user_id)) {
                     $number = $this->makeWorkOrderNumber($locId);
 
                     $woNew = WorkOrder::create([
-                        'intake_id'   => $intake->id,
-                        'location_id' => $locId,
-                        'customer_id' => $customer->id,
-                        'gear_id'     => $gear->id,
-                        'status'      => WorkOrderStatus::RECEIVED->value,
-                        'number'      => $number,
-                    ] + $assignPayload);
+                        'number'           => $number,
+                        'location_id'      => $locId,
+                        'customer_id'      => $customer->id,
+                        'gear_id'          => $gear->id,
+                        'assigned_user_id' => $this->assigned_user_id,
+                        'status'           => WorkOrderStatus::RECEIVED->value,
+                        'created_by'       => $user?->id,
+                    ]);
 
+                    // Veži intake → WO
                     $intake->update([
-                        'converted_at'         => now(),
-                        'converted_by_user_id' => $user->id,
+                        'converted_work_order_id' => $woNew->id,
+                        'converted_at'            => now(),
                     ]);
 
                     session()->flash('ok', 'Prijem evidentiran i nalog kreiran.');
                     return redirect()->route('workorders-edit', ['workorder' => $woNew->id]);
                 }
 
+                // 5) Bez servisera: samo prijem
                 session()->flash('ok', 'Prijem evidentiran – bez dodijeljenog servisera.');
                 return redirect()->route('workorders-board');
             }
 
-            // -------- UPDATE --------
-            // Customer
+            /* ========== UPDATE ========== */
+
+            // 1) Kupac
             $wo->customer->update([
                 'name'  => $customerData['name'],
                 'phone' => $customerData['phone'],
             ]);
 
-            // Gear (osiguraj da postoji; ako ne, kreiraj pa poveži)
+            // 2) Gear (kreiraj ako nedostaje)
             if (!$wo->gear) {
                 $gear = Gear::create([
                     'customer_id'   => $wo->customer_id,
@@ -372,22 +394,39 @@ class Intake extends Component
                 ]);
             }
 
-            // Re-assign serviser (samo za menadžer/admin/owner)
+            // 3) Backfill veze Intake ↔ WO ako nedostaje
+            //    (npr. WO je nekad kreiran bez linka, ili je link izgubljen)
+            $hasLinkedIntake = IntakeModel::where('converted_work_order_id', $wo->id)->exists();
+            if (! $hasLinkedIntake) {
+                $candidate = IntakeModel::query()
+                    ->where('location_id', $wo->location_id)
+                    ->where('customer_id', $wo->customer_id)
+                    ->where('gear_id', $wo->gear_id)           // bitno da je isti komad opreme
+                    ->orderByDesc('created_at')
+                    ->first();
+
+                if ($candidate) {
+                    $candidate->update([
+                        'converted_work_order_id' => $wo->id,
+                        'converted_at'            => $candidate->converted_at ?? now(),
+                    ]);
+                }
+            }
+
+            // 4) Re-assign serviser (samo menadžer/admin/owner)
             if ($canReassignOnEdit) {
                 $prev = $wo->assigned_user_id;
-                $new  = $assignPayload['assigned_user_id'];
+                $new  = $this->assigned_user_id ?: null;
 
                 if ($prev && !$new) {
                     $wo->update([
-                        'assigned_user_id'    => null,
-                        'assigned_at'         => null,
-                        'assigned_by_user_id' => null,
-                        'status'              => WorkOrderStatus::RECEIVED->value,
+                        'assigned_user_id' => null,
+                        'status'           => WorkOrderStatus::RECEIVED->value,
                     ]);
                 } elseif (!$prev && $new) {
-                    $wo->update($assignPayload);
+                    $wo->update(['assigned_user_id' => $new]);
                 } elseif ($prev && $new && $prev != $new) {
-                    $wo->update($assignPayload);
+                    $wo->update(['assigned_user_id' => $new]);
                 }
             }
 
@@ -395,6 +434,7 @@ class Intake extends Component
             return redirect()->route('workorders-edit', ['workorder' => $wo->id]);
         });
     }
+
 
     // Metoda koja briše stare vrijednosti atributa kada promijeniš kategoriju
     public function updatedGearCategory(string $value): void

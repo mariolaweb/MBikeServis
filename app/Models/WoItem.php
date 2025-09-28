@@ -29,8 +29,6 @@ class WoItem extends Model
         'unit_price' => 'decimal:2',
         'line_total' => 'decimal:2',
         'removed_at' => 'datetime',
-        // eleganten guard za vrijednosti tipa
-        'kind'       => WoItemKind::class, // ili 'string' ako ne želiš enum
     ];
 
     /* -------------------- Relationships -------------------- */
