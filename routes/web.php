@@ -24,11 +24,9 @@ Route::middleware([
     Route::get('/prijem-bicikla', Intake::class)->name('workorders-create');
     Route::get('/radni-nalozi/{workorder}/uredi', Intake::class)->whereNumber('workorder')->name('workorders-edit');
 
+
     // ERP završio “session” i vraća korisnika nazad u app
     Route::get('/intakes/{intake}/estimate/return', [ErpReturnController::class, 'handle'])
         ->name('erp.estimate.return');
-});
-
-
 
 });
