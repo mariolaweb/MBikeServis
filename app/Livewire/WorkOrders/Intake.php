@@ -583,25 +583,64 @@ class Intake extends Component
         if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
 
         DB::transaction(function () {
-            $wo  = WorkOrder::with(['latestEstimate.items', 'woItems'])->findOrFail($this->modelId);
-            $est = $wo->latestEstimate;
+            // Učitaj WO (aktivne stavke su nam korisne, ali nisu blokada)
+            $wo = WorkOrder::with(['items' => fn($q) => $q->active()])->findOrFail($this->modelId);
 
-            // zaštite: mora postojati pending/pogodna ponuda i da WO nema konačne stavke
-            if (! $est || $est->items->isEmpty() || $wo->items()->active()->exists() || $est->status === 'accepted') {
+            // ➜ UZMI NAJNOVIJI PENDING estimate za OVAJ WO (ne bilo koji 'latest')
+            $est = \App\Models\Estimate::where('work_order_id', $wo->id)
+                ->where('status', 'pending')
+                ->orderByDesc('received_at')
+                ->with('items')
+                ->first();
+
+            // Nema šta prihvatiti?
+            if (! $est || $est->items->isEmpty()) {
                 return;
             }
 
-            // Kopiraj estimate_items → wo_items
+            // ➜ APPEND: svaku stavku dodaj kao novi red u wo_items
             foreach ($est->items as $row) {
                 $wo->items()->create([
                     'sku'        => $row->sku,
                     'name'       => $row->name,
-                    'kind'       => null,                  // ako budeš razdvajao part/service
+                    'kind'       => null,              // npr. 'part'/'service' ako uvedeš tip
                     'qty'        => $row->qty,
                     'unit_price' => $row->unit_price,
                     'added_by'   => Auth::id(),
-                    // line_total se računa u WoItem::booted()
+                    // line_total se automatski računa u WoItem::booted()
                 ]);
+
+                /* ️⃣ Ako želiš MERGE umjesto novog reda (po SKU+unit_price),
+               zamijeni blok iznad ovim:
+
+            $existing = null;
+            if (!empty($row->sku)) {
+                $existing = $wo->items()->active()
+                    ->where('sku', $row->sku)
+                    ->where('unit_price', $row->unit_price)
+                    ->first();
+            } else {
+                $existing = $wo->items()->active()
+                    ->whereNull('sku')
+                    ->where('name', $row->name)
+                    ->where('unit_price', $row->unit_price)
+                    ->first();
+            }
+
+            if ($existing) {
+                $existing->qty = (float)$existing->qty + (float)$row->qty;
+                $existing->save(); // line_total će se preračunati u saving hook-u
+            } else {
+                $wo->items()->create([
+                    'sku'        => $row->sku,
+                    'name'       => $row->name,
+                    'kind'       => null,
+                    'qty'        => $row->qty,
+                    'unit_price' => $row->unit_price,
+                    'added_by'   => Auth::id(),
+                ]);
+            }
+            */
             }
 
             // Označi estimate prihvaćenim
@@ -611,11 +650,11 @@ class Intake extends Component
                 'status'      => 'accepted',
             ]);
 
-            // (opciono) promijeni status WO
+            // (opciono) update status WO
             $wo->update(['status' => WorkOrderStatus::IN_PROGRESS]);
         });
 
-        $this->dispatch('toast', type: 'success', message: 'Ponuda prihvaćena – stavke prebačene u nalog.');
+        $this->dispatch('toast', type: 'success', message: 'Ponuda prihvaćena – stavke dodane u nalog.');
     }
 
     public function declineEstimate(): void
@@ -625,8 +664,12 @@ class Intake extends Component
         $user = Auth::user();
         if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
 
-        $wo  = WorkOrder::with(['latestEstimate'])->find($this->modelId);
-        $est = $wo?->latestEstimate;
+        // Gađaj BAŠ pending estimate za ovaj WO (ne latest bilo koji)
+        $est = \App\Models\Estimate::where('work_order_id', $this->modelId)
+            ->where('status', 'pending')
+            ->orderByDesc('received_at')
+            ->first();
+
         if (! $est) return;
 
         $est->update([
