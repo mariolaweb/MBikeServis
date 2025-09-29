@@ -88,7 +88,14 @@ class WorkOrder extends Model
         return $this->hasOne(Estimate::class)->latestOfMany('received_at');
     }
 
-    public function woItems()         // postojeća tabela stavki naloga
+    public function latestPendingEstimate()
+    {
+        return $this->hasOne(Estimate::class)
+            ->where('status', 'pending')
+            ->latestOfMany('received_at');
+    }
+
+    public function woItems() // postojeća tabela stavki naloga
     {
         return $this->hasMany(WoItem::class);
     }

@@ -39,4 +39,14 @@ class Estimate extends Model
     {
         return $this->belongsTo(WorkOrder::class);
     }
+
+    public function scopeForWorkOrder($q, int $woId)
+    {
+        return $q->where('work_order_id', $woId);
+    }
+
+    public function scopePending($q)
+    {
+        return $q->where('status', 'pending');
+    }
 }

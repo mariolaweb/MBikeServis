@@ -268,10 +268,15 @@ class Intake extends Component
         $currentRouteId = request()->route('workorder');
         $currentRouteId = $currentRouteId ? (int)$currentRouteId : null;
 
-        if ($currentRouteId !== $this->modelId) {
-            // promjena naloga → reset ključnih polja i učitaj novi model
+        // if ($currentRouteId !== $this->modelId) {
+        //     // promjena naloga → reset ključnih polja i učitaj novi model
+        //     $this->resetFormForNewModel($currentRouteId);
+        // }
+        if ($this->modelId === null && $currentRouteId) {
             $this->resetFormForNewModel($currentRouteId);
         }
+
+
         $editing = (bool)$this->modelId;
 
         $location = null;
@@ -700,11 +705,10 @@ class Intake extends Component
     {
         if (! $this->modelId) return null;
 
-        return Estimate::where('work_order_id', $this->modelId)
-            ->where('status', 'pending')
-            ->orderByDesc('received_at')
-            ->with('items')
-            ->first();
+        return WorkOrder::query()
+            ->whereKey($this->modelId)
+            ->with(['latestPendingEstimate.items'])
+            ->first()?->latestPendingEstimate;
     }
 
     // da poll ne resetuje sve i da ne nestanu podaci iz formi, već samo odradi jednu metodu.
@@ -736,9 +740,10 @@ class Intake extends Component
 
         // Učitaj svježe relacije potrebne za prikaz
         $wo = WorkOrder::with([
-            'woItems' => fn($q) => $q->active(),   // samo aktivne wo stavke
-            'latestEstimate.items',
+            'woItems' => fn($q) => $q->active(),
+            'estimates' => fn($q) => $q->pending()->orderByDesc('received_at')->with('items')->limit(1),
         ])->find($this->modelId);
+
 
         if (! $wo) {
             return collect();

@@ -125,12 +125,15 @@ class ErpWebhookController extends Controller
 
             // ✅ Idempotentni upsert:
             //  - preferiraj idempotency_key ako postoji; u suprotnom external_estimate_id
-            $match = $idempotencyKey
+            $matchBase = $idempotencyKey
                 ? ['idempotency_key' => $idempotencyKey]
                 : ['external_estimate_id' => $external];
 
+            $match = $matchBase + ['work_order_id' => $workOrderId];
+
+
             /** @var \App\Models\Estimate $estimate */
-            $estimate = \App\Models\Estimate::updateOrCreate(
+            $estimate = Estimate::updateOrCreate(
                 $match,
                 [
                     'intake_id'            => $intakeId,
