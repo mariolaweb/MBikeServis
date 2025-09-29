@@ -102,6 +102,9 @@ class Intake extends Component
     public string $qrSvgPublicPath = '';
     public ?int $workOrderId = null;
     public ?string $showing = null; // 'wo' | 'estimate' | null
+    // da riješimo dupli prikaz ponude - da se ne pojavljue kao dodana
+    public ?int $pendingEstimateId = null;
+    public bool $hasWoItems = false;
 
 
 
@@ -206,6 +209,18 @@ class Intake extends Component
             $wo->public_track_url,
             $wo->public_token
         );
+
+        $countsWo = \App\Models\WoItem::where('work_order_id', $wo->id)
+            ->whereNull('removed_at')
+            ->count();
+
+        $this->hasWoItems = $countsWo > 0;
+
+        $this->pendingEstimateId = \App\Models\Estimate::where('work_order_id', $wo->id)
+            ->where('status', 'pending')
+            ->orderByDesc('received_at')
+            ->value('id'); // null ako nema
+
     }
 
     //Resetovanje svih polja kada se prebacujemo iz jednog radnog naloga u drugi
@@ -701,15 +716,23 @@ class Intake extends Component
     }
 
     // kada na već postojeće dijelove u nalogu dodajemo nove, pa dok ih ne prihvatimo
+    // public function getPendingEstimateProperty()
+    // {
+    //     if (! $this->modelId) return null;
+
+    //     return WorkOrder::query()
+    //         ->whereKey($this->modelId)
+    //         ->with(['latestPendingEstimate.items'])
+    //         ->first()?->latestPendingEstimate;
+    // }
+
     public function getPendingEstimateProperty()
     {
-        if (! $this->modelId) return null;
-
-        return WorkOrder::query()
-            ->whereKey($this->modelId)
-            ->with(['latestPendingEstimate.items'])
-            ->first()?->latestPendingEstimate;
+        return $this->pendingEstimateId
+            ? Estimate::with('items')->find($this->pendingEstimateId)
+            : null;
     }
+
 
     // da poll ne resetuje sve i da ne nestanu podaci iz formi, već samo odradi jednu metodu.
     public function checkForOffer(): void
@@ -717,18 +740,13 @@ class Intake extends Component
         if (!$this->modelId) return;
 
         $wo = WorkOrder::withCount(['woItems as wo_items_count' => fn($q) => $q->active()])
-            ->with(['latestEstimate' => fn($q) => $q->withCount('items')])
+            ->with(['estimates' => fn($q) => $q->pending()->orderByDesc('received_at')->limit(1)])
             ->find($this->modelId);
 
         if (!$wo) return;
 
-        if ($wo->wo_items_count > 0) {
-            $this->showing = 'wo';
-            return;
-        }
-
-        $est = $wo->latestEstimate;
-        $this->showing = ($est && $est->items_count > 0) ? 'estimate' : null;
+        $this->hasWoItems = ($wo->wo_items_count ?? 0) > 0;
+        $this->pendingEstimateId = optional($wo->estimates->first())->id;
     }
 
     public function getDisplayItemsProperty()
@@ -739,10 +757,12 @@ class Intake extends Component
         }
 
         // Učitaj svježe relacije potrebne za prikaz
-        $wo = WorkOrder::with([
-            'woItems' => fn($q) => $q->active(),
-            'estimates' => fn($q) => $q->pending()->orderByDesc('received_at')->with('items')->limit(1),
-        ])->find($this->modelId);
+        // $wo = WorkOrder::with([
+        //     'woItems' => fn($q) => $q->active(),
+        //     'estimates' => fn($q) => $q->pending()->orderByDesc('received_at')->with('items')->limit(1),
+        // ])->find($this->modelId);
+        $wo = WorkOrder::with(['woItems' => fn($q) => $q->active()])->find($this->modelId);
+        if (!$wo) return collect();
 
 
         if (! $wo) {
@@ -762,7 +782,7 @@ class Intake extends Component
         }
 
         // 2) Inače prikaži estimate_items iz najnovijeg estimate-a
-        $est = $wo->latestEstimate;
+        $est = $wo->pendingEstimate;
         if ($est && $est->items->isNotEmpty()) {
             return $est->items->map(fn($i) => [
                 'type'       => 'estimate',
