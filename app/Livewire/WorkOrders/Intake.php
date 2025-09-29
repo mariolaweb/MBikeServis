@@ -565,7 +565,6 @@ class Intake extends Component
         };
     }
 
-
     private function filterNulls(array $data): array
     {
         return array_filter($data, static fn($v) => !is_null($v) && $v !== '');
@@ -706,6 +705,13 @@ class Intake extends Component
             ->with('items')
             ->first();
     }
+
+    // da poll ne resetuje sve i da ne nestanu podaci iz formi, već samo odradi jednu metodu.
+    public function checkForOffer()
+    {
+        $this->loadModel($this->workOrderId); // ili samo update $showing
+    }
+
 
     public function getDisplayItemsProperty()
     {

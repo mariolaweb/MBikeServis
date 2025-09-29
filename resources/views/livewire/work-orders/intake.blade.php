@@ -76,7 +76,7 @@
             </div>
         </div>
 
-        {{-- Kategorija --}}
+
         {{-- Kategorije (pills) --}}
         <div class="space-y-2">
             <div class="block text-xs text-gray-600">Kategorija *</div>
@@ -347,9 +347,11 @@
 
         {{-- Ako još nema ni wo_items ni estimate_items --}}
         @if (is_null($showing))
-            <div class="px-4 py-3 mb-4 border rounded-lg bg-slate-50" wire:poll.5s>
+            <div class="px-4 py-3 mb-4 border rounded-lg bg-slate-50">
                 <p class="font-semibold">Čekamo ERP ponudu…</p>
-                <p class="text-sm text-gray-600">Osvježava se automatski čim stigne.</p>
+                <p class="text-sm text-gray-600" wire:poll.5s="checkForOffer">
+                    Osvježava se automatski čim stigne.
+                </p>
             </div>
         @endif
 
