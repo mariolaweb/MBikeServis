@@ -160,8 +160,6 @@ class Intake extends Component
     {
         $wo = WorkOrder::with(['customer', 'gear', 'location', 'intake.gear'])->findOrFail($id);
 
-        $this->workOrderId = $wo->id;
-
         $this->locId          = $wo->location_id;
         $this->customer_name  = (string)$wo->customer?->name;
         $this->customer_phone = $wo->customer?->phone;
@@ -198,6 +196,8 @@ class Intake extends Component
         }
 
         $this->assigned_user_id = $wo->assigned_user_id;
+
+        $this->workOrderId = $wo->id;
 
         // ✅ Generisanje QR koda na kraju
         $qr = app(QrCodeService::class);
@@ -709,6 +709,10 @@ class Intake extends Component
     // da poll ne resetuje sve i da ne nestanu podaci iz formi, već samo odradi jednu metodu.
     public function checkForOffer()
     {
+        if (!$this->workOrderId) {
+        return;
+        }
+
         $this->loadModel($this->workOrderId); // ili samo update $showing
     }
 
