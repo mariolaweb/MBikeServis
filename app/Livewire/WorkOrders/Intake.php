@@ -746,54 +746,47 @@ class Intake extends Component
         if (!$wo) return;
 
         $this->hasWoItems = ($wo->wo_items_count ?? 0) > 0;
-        $this->pendingEstimateId = optional($wo->estimates->first())->id;
+        // ⬇️ Ako nema pending estimate-a, vraćamo na null (bez stale vrijednosti)
+        $this->pendingEstimateId = optional($wo->estimates->first())->id ?? null;
     }
 
     public function getDisplayItemsProperty()
-    {
-        // Ako nismo u editu ili nije učitan WO – nema ništa
-        if (! $this->modelId) {
-            return collect();
-        }
-
-        // Učitaj svježe relacije potrebne za prikaz
-        // $wo = WorkOrder::with([
-        //     'woItems' => fn($q) => $q->active(),
-        //     'estimates' => fn($q) => $q->pending()->orderByDesc('received_at')->with('items')->limit(1),
-        // ])->find($this->modelId);
-        $wo = WorkOrder::with(['woItems' => fn($q) => $q->active()])->find($this->modelId);
-        if (!$wo) return collect();
-
-
-        if (! $wo) {
-            return collect();
-        }
-
-        // 1) Ako postoje wo_items → oni imaju prioritet
-        if ($wo->woItems->isNotEmpty()) {
-            return $wo->woItems->map(fn($i) => [
-                'type'       => 'wo',
-                'sku'        => $i->sku,
-                'name'       => $i->name,
-                'qty'        => (float)$i->qty,
-                'unit_price' => (float)$i->unit_price,
-                'line_total' => (float)$i->line_total,
-            ]);
-        }
-
-        // 2) Inače prikaži estimate_items iz najnovijeg estimate-a
-        $est = $wo->pendingEstimate;
-        if ($est && $est->items->isNotEmpty()) {
-            return $est->items->map(fn($i) => [
-                'type'       => 'estimate',
-                'sku'        => $i->sku,
-                'name'       => $i->name,
-                'qty'        => (float)$i->qty,
-                'unit_price' => (float)$i->unit_price,
-                'line_total' => (float)$i->line_total,
-            ]);
-        }
-
+{
+    if (! $this->modelId) {
         return collect();
     }
+
+    // Učitaj samo aktivne stavke iz WO (ovo je glavni izvor istine kad postoje)
+    $wo = WorkOrder::with(['woItems' => fn($q) => $q->active()])->find($this->modelId);
+    if (! $wo) return collect();
+
+    // 1) Ako postoje wo_items → prikaži njih
+    if ($wo->woItems->isNotEmpty()) {
+        return $wo->woItems->map(fn($i) => [
+            'type'       => 'wo',
+            'sku'        => $i->sku,
+            'name'       => $i->name,
+            'qty'        => (float)$i->qty,
+            'unit_price' => (float)$i->unit_price,
+            'line_total' => (float)$i->line_total,
+        ]);
+    }
+
+    // 2) Inače prikaži stavke iz pending estimate-a
+    // !! KORISTIMO computed property koji već ide preko $this->pendingEstimateId
+    $est = $this->pendingEstimate; // <-- ključno!
+    if ($est && $est->items->isNotEmpty()) {
+        return $est->items->map(fn($i) => [
+            'type'       => 'estimate',
+            'sku'        => $i->sku,
+            'name'       => $i->name,
+            'qty'        => (float)$i->qty,
+            'unit_price' => (float)$i->unit_price,
+            'line_total' => (float)$i->line_total,
+        ]);
+    }
+
+    return collect();
+}
+
 }
