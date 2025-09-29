@@ -359,7 +359,7 @@
             <div class="px-4 py-3 mb-4 border rounded-lg bg-amber-50">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="font-semibold">ERP ponuda (estimate)</p>
+                        <p class="font-semibold">ERP ponuda (estimate) - Estimate ID: {{ $pending->id }}</p>
                         <p class="text-sm text-gray-600">Dok nema konačnih stavki, prikazuju se stavke iz ERP ponude.
                         </p>
                     </div>
@@ -417,7 +417,7 @@
                 <div class="px-4 py-3 mb-4 border rounded-lg bg-amber-50">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="font-semibold">Nova ERP ponuda (dodatne stavke)</p>
+                            <p class="font-semibold">Nova ERP ponuda (dodatne stavke) - Estimate ID: {{ $pending->id }}</p>
                             <p class="text-sm text-gray-600">
                                 Stigle su dodatne stavke iz ERP-a ({{ $pending->items->count() }}).
                                 Prihvatom će se dodati na postojeći nalog.
