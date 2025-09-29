@@ -420,34 +420,28 @@ class Intake extends Component
                     'created_by'  => $user?->id,
                 ]);
 
-                // 4) Ako je serviser izabran → odmah WO
-                if (!empty($this->assigned_user_id)) {
-                    $number = $this->makeWorkOrderNumber($locId);
+                // 4) UVIJEK kreiraj WO odmah (serviser može biti i null)
+                $number = $this->makeWorkOrderNumber($locId);
 
-                    $woNew = WorkOrder::create([
-                        'number'           => $number,
-                        'location_id'      => $locId,
-                        'customer_id'      => $customer->id,
-                        'gear_id'          => $gear->id,
-                        'assigned_user_id' => $this->assigned_user_id,
-                        'status'           => WorkOrderStatus::RECEIVED->value,
-                        'created_by'       => $user?->id,
-                        'public_token'     => (string) Str::ulid(),   // ✅ DODANO
-                    ]);
+                $woNew = WorkOrder::create([
+                    'number'           => $number,
+                    'location_id'      => $locId,
+                    'customer_id'      => $customer->id,
+                    'gear_id'          => $gear->id,
+                    'assigned_user_id' => $this->assigned_user_id ?: null, // ✅ može biti null
+                    'status'           => WorkOrderStatus::RECEIVED->value,
+                    'created_by'       => $user?->id,
+                    'public_token'     => (string) Str::ulid(),            // ✅ QR/track odmah radi
+                ]);
 
-                    // Veži intake → WO
-                    $intake->update([
-                        'converted_work_order_id' => $woNew->id,
-                        'converted_at'            => now(),
-                    ]);
+                // Veži intake → WO (audit ostaje)
+                $intake->update([
+                    'converted_work_order_id' => $woNew->id,
+                    'converted_at'            => now(),
+                ]);
 
-                    session()->flash('ok', 'Prijem evidentiran i nalog kreiran.');
-                    return redirect()->route('workorders-edit', ['workorder' => $woNew->id]);
-                }
-
-                // 5) Bez servisera: samo prijem
-                session()->flash('ok', 'Prijem evidentiran – bez dodijeljenog servisera.');
-                return redirect()->route('workorders-board');
+                session()->flash('ok', 'Prijem evidentiran i radni nalog kreiran.');
+                return redirect()->route('workorders-edit', ['workorder' => $woNew->id]);
             }
 
             /* ========== UPDATE ========== */
@@ -748,45 +742,49 @@ class Intake extends Component
         $this->hasWoItems = ($wo->wo_items_count ?? 0) > 0;
         // ⬇️ Ako nema pending estimate-a, vraćamo na null (bez stale vrijednosti)
         $this->pendingEstimateId = optional($wo->estimates->first())->id ?? null;
+
+        // ⬇️ Ovo je važno zbog onog @if (is_null($showing)) u Blade-u:
+        $this->showing = $this->hasWoItems
+            ? 'wo'
+            : ($this->pendingEstimateId ? 'estimate' : null);
     }
 
     public function getDisplayItemsProperty()
-{
-    if (! $this->modelId) {
+    {
+        if (! $this->modelId) {
+            return collect();
+        }
+
+        // Učitaj samo aktivne stavke iz WO (ovo je glavni izvor istine kad postoje)
+        $wo = WorkOrder::with(['woItems' => fn($q) => $q->active()])->find($this->modelId);
+        if (! $wo) return collect();
+
+        // 1) Ako postoje wo_items → prikaži njih
+        if ($wo->woItems->isNotEmpty()) {
+            return $wo->woItems->map(fn($i) => [
+                'type'       => 'wo',
+                'sku'        => $i->sku,
+                'name'       => $i->name,
+                'qty'        => (float)$i->qty,
+                'unit_price' => (float)$i->unit_price,
+                'line_total' => (float)$i->line_total,
+            ]);
+        }
+
+        // 2) Inače prikaži stavke iz pending estimate-a
+        // !! KORISTIMO computed property koji već ide preko $this->pendingEstimateId
+        $est = $this->pendingEstimate; // <-- ključno!
+        if ($est && $est->items->isNotEmpty()) {
+            return $est->items->map(fn($i) => [
+                'type'       => 'estimate',
+                'sku'        => $i->sku,
+                'name'       => $i->name,
+                'qty'        => (float)$i->qty,
+                'unit_price' => (float)$i->unit_price,
+                'line_total' => (float)$i->line_total,
+            ]);
+        }
+
         return collect();
     }
-
-    // Učitaj samo aktivne stavke iz WO (ovo je glavni izvor istine kad postoje)
-    $wo = WorkOrder::with(['woItems' => fn($q) => $q->active()])->find($this->modelId);
-    if (! $wo) return collect();
-
-    // 1) Ako postoje wo_items → prikaži njih
-    if ($wo->woItems->isNotEmpty()) {
-        return $wo->woItems->map(fn($i) => [
-            'type'       => 'wo',
-            'sku'        => $i->sku,
-            'name'       => $i->name,
-            'qty'        => (float)$i->qty,
-            'unit_price' => (float)$i->unit_price,
-            'line_total' => (float)$i->line_total,
-        ]);
-    }
-
-    // 2) Inače prikaži stavke iz pending estimate-a
-    // !! KORISTIMO computed property koji već ide preko $this->pendingEstimateId
-    $est = $this->pendingEstimate; // <-- ključno!
-    if ($est && $est->items->isNotEmpty()) {
-        return $est->items->map(fn($i) => [
-            'type'       => 'estimate',
-            'sku'        => $i->sku,
-            'name'       => $i->name,
-            'qty'        => (float)$i->qty,
-            'unit_price' => (float)$i->unit_price,
-            'line_total' => (float)$i->line_total,
-        ]);
-    }
-
-    return collect();
-}
-
 }

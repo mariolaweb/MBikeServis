@@ -14,6 +14,7 @@
         @else
             <div class="text-sm text-yellow-700">
                 Poslovnica nije izabrana.
+                @php $isAdminOwner = $user?->hasAnyRole(['master-admin','vlasnik']) ?? false; @endphp
                 @if ($isAdminOwner)
                     <span class="ml-2">Izaberi lokaciju na Dashboardu.</span>
                 @endif
@@ -30,14 +31,16 @@
     {{-- Quick actions --}}
     <div class="flex flex-wrap items-center gap-2">
         @php
-            // owner/admin: treba izabrana lokacija; ostali uvijek mogu (imaju user->location_id)
+            $isAdminOwner = $user?->hasAnyRole(['master-admin','vlasnik']) ?? false;
+            $isServiser   = $user?->hasRole('serviser') ?? false;
+            // owner/admin: treba izabrana lokacija; ostali imaju user->location_id
             $canOpenIntake = !$isAdminOwner || (bool) $currentLocation;
         @endphp
 
         <a href="{{ $canOpenIntake ? route('workorders-create') : '#' }}"
            class="{{ $canOpenIntake ? '' : 'opacity-50 cursor-not-allowed pointer-events-none' }} rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
            @unless ($canOpenIntake) aria-disabled="true" title="Prvo izaberi poslovnicu na Dashboardu" @endunless>
-            + Prijem opreme
+            + Kreiraj nalog
         </a>
 
         @if ($isServiser)
@@ -51,66 +54,7 @@
         @endif
     </div>
 
-    {{-- PRIJEMI NA ČEKANJU (svi vide) --}}
-    <div class="overflow-hidden bg-white border rounded-xl">
-        <div class="px-4 py-3 text-sm font-semibold border-b bg-gray-50">Prijemi (bez radnog naloga)</div>
-
-        @if (!$currentLocation)
-            <div class="p-6 text-sm text-gray-600">Izaberi poslovnicu da vidiš prijeme.</div>
-        @else
-            <table class="min-w-full text-sm">
-                <thead class="text-left bg-gray-50">
-                    <tr>
-                        <th class="px-4 py-2">Datum</th>
-                        <th class="px-4 py-2">Mušterija</th>
-                        <th class="px-4 py-2">Telefon</th>
-                        <th class="px-4 py-2">Oprema</th>
-                        <th class="w-56 px-4 py-2"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($intakes as $it)
-                        <tr class="border-t">
-                            <td class="px-4 py-2 whitespace-nowrap">{{ $it->created_at->format('d.m.Y H:i') }}</td>
-                            <td class="px-4 py-2">{{ $it->customer->name }}</td>
-                            <td class="px-4 py-2">{{ $it->customer->phone }}</td>
-                            <td class="px-4 py-2">
-                                {{ $it->gear?->brand }}
-                                @if ($it->gear?->model) — {{ $it->gear->model }} @endif
-                            </td>
-                            <td class="px-4 py-2 text-right">
-                                <div class="flex items-center justify-end gap-2">
-                                    {{-- 1) Preuzmi (ja) — self-assign + kreiraj WO --}}
-                                    <button type="button"
-                                            wire:click.prevent="claimAndConvert({{ $it->id }})"
-                                            class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700">
-                                        Preuzmi (ja)
-                                    </button>
-
-                                    {{-- 2) Odaberi servisera & kreiraj --}}
-                                    <button type="button"
-                                            wire:click.prevent="openAssignModal({{ $it->id }})"
-                                            class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                                        Dodijeli & Kreiraj
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="px-4 py-6 text-center text-gray-500">Nema prijema na čekanju.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-
-            <div class="px-4 py-3">
-                {{ method_exists($intakes, 'links') ? $intakes->withQueryString()->links() : '' }}
-            </div>
-        @endif
-    </div>
-
-    {{-- RADNI NALOZI (svi vide; Uredi/dodjela) --}}
+    {{-- RADNI NALOZI --}}
     <div class="overflow-hidden bg-white border rounded-xl">
         <div class="px-4 py-3 text-sm font-semibold border-b bg-gray-50">Radni nalozi</div>
 
@@ -119,10 +63,9 @@
                 <tr>
                     <th class="px-4 py-2">Broj</th>
                     <th class="px-4 py-2">Mušterija</th>
-                    <th class="px-4 py-2">Oprema</th>
                     <th class="px-4 py-2">Serviser</th>
                     <th class="px-4 py-2">Status</th>
-                    <th class="w-40 px-4 py-2"></th>
+                    <th class="w-40 px-4 py-2">Akcija</th>
                 </tr>
             </thead>
             <tbody>
@@ -130,26 +73,27 @@
                     <tr class="border-t">
                         <td class="px-4 py-2 whitespace-nowrap">
                             {{ $wo->number }}
-                            @if (is_null($wo->assigned_user_id))
-                                <span class="ml-2 rounded bg-yellow-100 px-2 py-0.5 align-middle text-[10px] font-semibold text-yellow-800">
-                                    Bez servisera
-                                </span>
-                            @endif
                         </td>
                         <td class="px-4 py-2">
                             {{ $wo->customer?->name }}
                             <div class="text-xs text-gray-500">{{ $wo->customer?->phone }}</div>
                         </td>
+
+                        {{-- Serviser: ime ili žuti badge --}}
                         <td class="px-4 py-2">
-                            {{ $wo->gear?->brand }}@if($wo->gear?->model) — {{ $wo->gear->model }} @endif
+                            @if ($wo->assignedUser?->name)
+                                {{ $wo->assignedUser->name }}
+                            @else
+                                <span class="rounded bg-yellow-100 px-2 py-0.5 align-middle text-xs font-semibold text-yellow-800">
+                                    Bez servisera
+                                </span>
+                            @endif
                         </td>
-                        <td class="px-4 py-2">{{ $wo->assignedUser?->name ?? '—' }}</td>
+
                         <td class="px-4 py-2">
-                            {{-- ako koristiš enum sa label(): --}}
                             {{ method_exists($wo->status, 'label') ? $wo->status->label() : ($wo->status ?? '—') }}
                         </td>
                         <td class="px-4 py-2 text-right">
-                            {{-- Svi mogu otvoriti i dodijeliti/urediti --}}
                             <a href="{{ route('workorders-edit', ['workorder' => $wo->id]) }}"
                                class="rounded {{ is_null($wo->assigned_user_id) ? 'bg-blue-600 text-white hover:bg-blue-700' : 'border hover:bg-gray-50' }} px-3 py-1.5 text-xs font-semibold">
                                 {{ is_null($wo->assigned_user_id) ? 'Dodijeli servisera' : 'Uredi' }}
@@ -158,7 +102,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" class="px-4 py-6 text-center text-gray-500">Nema naloga za prikaz.</td>
+                        <td colspan="5" class="px-4 py-6 text-center text-gray-500">Nema naloga za prikaz.</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -168,43 +112,4 @@
             {{ $workOrders->withQueryString()->links() }}
         </div>
     </div>
-
-    {{-- Modal: Dodijeli servisera & kreiraj nalog iz prijema --}}
-    @if ($showAssignModal)
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div class="w-full max-w-md p-6 bg-white shadow-xl rounded-xl">
-                <div class="mb-4 text-sm font-semibold">Dodijeli servisera i kreiraj nalog</div>
-
-                @if (empty($technicians))
-                    <div class="p-3 mb-4 text-sm text-yellow-800 rounded bg-yellow-50">
-                        Nema dostupnih servisera za ovu poslovnicu.
-                    </div>
-                @else
-                    <label class="block text-xs text-gray-600">Serviser</label>
-                    <select wire:model.live="technicianId" class="w-full px-3 py-2 mt-1 border rounded">
-                        <option value="">— Odaberi servisera —</option>
-                        @foreach ($technicians as $tech)
-                            <option value="{{ $tech['id'] }}">{{ $tech['name'] }}</option>
-                        @endforeach
-                    </select>
-                    @error('technician')
-                        <div class="mt-1 text-xs text-red-600">{{ $message }}</div>
-                    @enderror
-                @endif
-
-                <div class="flex items-center justify-end gap-2 mt-6">
-                    <button type="button" wire:click="$set('showAssignModal', false)"
-                            class="rounded border px-3 py-1.5 text-xs hover:bg-gray-50">
-                        Odustani
-                    </button>
-                    <button type="button" wire:click="convertIntake({{ $intakeIdForAssign }})"
-                            wire:loading.attr="disabled"
-                            class="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                            @if (empty($technicians)) disabled @endif>
-                        Potvrdi
-                    </button>
-                </div>
-            </div>
-        </div>
-    @endif
 </div>
