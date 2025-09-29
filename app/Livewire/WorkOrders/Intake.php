@@ -100,7 +100,8 @@ class Intake extends Component
 
     public ?int $locId = null;
     public string $qrSvgPublicPath = '';
-    public int $workOrderId;
+    public ?int $workOrderId = null;
+    public ?string $showing = null; // 'wo' | 'estimate' | null
 
 
 
@@ -707,20 +708,29 @@ class Intake extends Component
     }
 
     // da poll ne resetuje sve i da ne nestanu podaci iz formi, već samo odradi jednu metodu.
-    public function checkForOffer()
+    public function checkForOffer(): void
     {
-        if (!$this->workOrderId) {
-        return;
+        if (!$this->modelId) return;
+
+        $wo = WorkOrder::withCount(['woItems as wo_items_count' => fn($q) => $q->active()])
+            ->with(['latestEstimate' => fn($q) => $q->withCount('items')])
+            ->find($this->modelId);
+
+        if (!$wo) return;
+
+        if ($wo->wo_items_count > 0) {
+            $this->showing = 'wo';
+            return;
         }
 
-        $this->loadModel($this->workOrderId); // ili samo update $showing
+        $est = $wo->latestEstimate;
+        $this->showing = ($est && $est->items_count > 0) ? 'estimate' : null;
     }
-
 
     public function getDisplayItemsProperty()
     {
         // Ako nismo u editu ili nije učitan WO – nema ništa
-        if (! $this->modelId ?? null) {
+        if (! $this->modelId) {
             return collect();
         }
 
