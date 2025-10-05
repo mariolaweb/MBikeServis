@@ -106,6 +106,9 @@ class Intake extends Component
     public ?int $pendingEstimateId = null;
     public bool $hasWoItems = false;
 
+    public ?bool $canErp = false;
+    public ?WorkOrder $workOrder = null;
+
 
 
     public function startErpEstimate(): mixed
@@ -116,9 +119,20 @@ class Intake extends Component
             return null;
         }
 
-        $wo = WorkOrder::select('id')->find($this->modelId);
+        $user = Auth::user();
+
+        $wo = WorkOrder::select('id','assigned_user_id','location_id')->find($this->modelId);
         if (! $wo) {
             session()->flash('error', 'ERP: Nalog nije pronađen.');
+            return null;
+        }
+
+        // 🔒 Dozvola: owner/master-admin/menadžer ili DODIJELJENI serviser
+        $isPrivileged   = $user->hasAnyRole(['master-admin','vlasnik','menadzer']);
+        $isAssignedTech = $user->hasRole('serviser') && (int)$wo->assigned_user_id === (int)$user->id;
+
+        if (! ($isPrivileged || $isAssignedTech)) {
+            session()->flash('error', 'Nemate dozvolu za pokretanje ERP predračuna.');
             return null;
         }
 
@@ -329,6 +343,17 @@ class Intake extends Component
                 ->orderBy('name')
                 ->get(['id', 'name']);
         }
+
+        $this->workOrder = $this->modelId
+        ? WorkOrder::select('id','assigned_user_id','location_id')->find($this->modelId)
+        : null;
+
+        //Ko može praviti kontakt sa ERP-om
+        $this->canErp = $this->workOrder
+        && (
+            $user->hasAnyRole(['master-admin','vlasnik','menadzer'])
+            || ($user->hasRole('serviser') && (int)$this->workOrder->assigned_user_id === (int)$user->id)
+        );
 
         return view('livewire.work-orders.intake', compact(
             'user',
@@ -718,6 +743,11 @@ class Intake extends Component
 
         $user = Auth::user();
         if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
+
+        $wo = WorkOrder::select('id','assigned_user_id')->findOrFail($this->modelId);
+        $isPrivileged = $user->hasAnyRole(['master-admin','vlasnik','menadzer']);
+        $isAssignedTech = $user->hasRole('serviser') && (int)$wo->assigned_user_id === (int)$user->id;
+        if (! $isPrivileged && ! $isAssignedTech) return; // ili abort(403)
 
         // Gađaj BAŠ pending estimate za ovaj WO (ne latest bilo koji)
         $est = Estimate::where('work_order_id', $this->modelId)

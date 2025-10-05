@@ -30,23 +30,25 @@
         @endif
     </div>
 
-<div class="flex items-center justify-center w-1/2 py-4 mx-auto space-x-5">
-    {{-- QR preview + download u admin edit view --}}
-@if(!empty($qrSvgPublicPath))
-  <div class="p-2 bg-white border-8 shadow w-44 h-44 rounded-2xl">
-    <img src="{{ asset($qrSvgPublicPath) }}" alt="QR" class="object-contain w-full h-full" />
-  </div>
+    <div class="flex items-center justify-center w-1/2 py-4 mx-auto space-x-5">
+        {{-- QR preview + download u admin edit view --}}
+        @if (!empty($qrSvgPublicPath))
+            <div class="p-2 bg-white border-8 shadow h-44 w-44 rounded-2xl">
+                <img src="{{ asset($qrSvgPublicPath) }}" alt="QR" class="object-contain w-full h-full" />
+            </div>
 
-  <div class="flex flex-col items-center gap-4">
-    <a href="{{ asset($qrSvgPublicPath) }}" download class="px-3 py-1.5 rounded bg-gray-800 text-white text-sm">
-      Preuzmi SVG
-    </a>
-    <a href="{{ route('admin.print.label', $workOrderId) }}" class="px-3 py-1.5 rounded bg-gray-200 text-sm">
-      Print naljepnica
-    </a>
-  </div>
-@endif
-</div>
+            <div class="flex flex-col items-center gap-4">
+                <a href="{{ asset($qrSvgPublicPath) }}" download
+                    class="rounded bg-gray-800 px-3 py-1.5 text-sm text-white">
+                    Preuzmi SVG
+                </a>
+                <a href="{{ route('admin.print.label', $workOrderId) }}"
+                    class="rounded bg-gray-200 px-3 py-1.5 text-sm">
+                    Print naljepnica
+                </a>
+            </div>
+        @endif
+    </div>
 
     {{-- Forma --}}
     @php $canSubmit = (bool) $location; @endphp
@@ -413,46 +415,56 @@
         </div>
 
         {{-- ➕ Novi dodatni estimate (pending) – prikaži kao banner uz wo_items --}}
-            @if ($hasWoItems && $pending && $pending->items->isNotEmpty() && ($canAcceptEstimate ?? false))
-                <div class="px-4 py-3 mb-4 border rounded-lg bg-amber-50">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="font-semibold">Nova ERP ponuda (dodatne stavke)</p>
-                            <p class="text-sm text-gray-600">
-                                Stigle su dodatne stavke iz ERP-a ({{ $pending->items->count() }}).
-                                Prihvatom će se dodati na postojeći nalog.
-                            </p>
-                        </div>
-                        <div class="flex gap-2">
-                            <button wire:click="acceptEstimate"
-                                class="px-3 py-2 text-white bg-green-600 rounded">Prihvati</button>
-                            <button wire:click="declineEstimate"
-                                class="px-3 py-2 text-white bg-red-600 rounded">Odbij</button>
-                        </div>
+        @if ($hasWoItems && $pending && $pending->items->isNotEmpty() && ($canAcceptEstimate ?? false))
+            <div class="px-4 py-3 mb-4 border rounded-lg bg-amber-50">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="font-semibold">Nova ERP ponuda (dodatne stavke)</p>
+                        <p class="text-sm text-gray-600">
+                            Stigle su dodatne stavke iz ERP-a ({{ $pending->items->count() }}).
+                            Prihvatom će se dodati na postojeći nalog.
+                        </p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button wire:click="acceptEstimate"
+                            class="px-3 py-2 text-white bg-green-600 rounded">Prihvati</button>
+                        <button wire:click="declineEstimate"
+                            class="px-3 py-2 text-white bg-red-600 rounded">Odbij</button>
                     </div>
                 </div>
-            @endif
+            </div>
+        @endif
 
 
         {{-- Kontakt ERP --}}
         <div class="w-full mx-auto md:w-2/3 lg:w-1/2">
             @if ($editing)
+                {{-- @php
+                    $user = auth()->user();
+                    $canErp =
+                        $user->hasAnyRole(['master-admin', 'vlasnik', 'menadzer']) ||
+                        ($user->hasRole('serviser') && (int) $workOrder->assigned_user_id === (int) $user->id);
+                @endphp --}}
+
                 <div class="flex items-center justify-between pt-4 mt-2 border-t">
                     <div class="text-xs text-gray-500">
                         Test ERP integracije: otvori predračun za ovaj prijem.
                     </div>
-                    <button type="button" wire:click="startErpEstimate" wire:loading.attr="disabled"
-                        class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
-                        Predračun u ERP-u
-                    </button>
+
+                    @if ($canErp)
+                        <button type="button" wire:click="startErpEstimate" wire:loading.attr="disabled"
+                            class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
+                            Predračun u ERP-u
+                        </button>
+                    @endif
                 </div>
 
                 @if (session('error'))
                     <div class="px-3 py-2 mt-3 text-sm text-red-700 rounded bg-red-50">{{ session('error') }}</div>
                 @endif
             @endif
-
         </div>
+
 
         <div class="flex justify-end">
             <button type="{{ $canSubmit ? 'submit' : 'button' }}" @disabled(!$canSubmit)
