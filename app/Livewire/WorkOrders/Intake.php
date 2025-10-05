@@ -635,11 +635,11 @@ class Intake extends Component
         $isPrivileged = $user->hasAnyRole(['master-admin','vlasnik','menadzer']);
         $isAssignedTech = $user->hasRole('serviser') && (int)$wo->assigned_user_id === (int)$user->id;
 
-    if (! $isPrivileged && ! $isAssignedTech) return; // ili abort(403)
+        if (! $isPrivileged && ! $isAssignedTech) return; // ili abort(403)
 
-        DB::transaction(function () {
+        DB::transaction(function () use ($wo) {
             // Učitaj WO (aktivne stavke su nam korisne, ali nisu blokada)
-            $wo = WorkOrder::with(['items' => fn($q) => $q->active()])->findOrFail($this->modelId);
+            $wo->load(['items' => fn($q) => $q->active()]);
 
             // ➜ UZMI NAJNOVIJI PENDING estimate za OVAJ WO (ne bilo koji 'latest')
             $est = Estimate::where('work_order_id', $wo->id)
