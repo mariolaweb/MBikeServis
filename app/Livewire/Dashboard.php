@@ -7,6 +7,7 @@ use App\Models\Location;
 use App\Models\WorkOrder;
 use Illuminate\Support\Carbon;
 use Livewire\Attributes\Layout;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class Dashboard extends Component
@@ -75,32 +76,45 @@ class Dashboard extends Component
             $base->where('location_id', $selectedLocId);
         }
 
+        // Helper za opseg kreiranja
+        $createdInRange = fn($q) => $q->whereBetween('created_at', [$start, $end]);
+
         // ---------- SAŽETAK (Sve poslovnice ili aktivna) ----------
         // 1) ukupno zaprimljeno (po created_at)
         $totalReceived = (clone $base)
-            ->whereBetween('created_at', [$start, $end])
+            ->where($createdInRange)
             ->count();
 
         // 2) čeka dodjelu servisera
         $waitingAssignment = (clone $base)
-            ->whereBetween('created_at', [$start, $end])
+            ->where($createdInRange)
             ->whereNull('assigned_user_id')
             ->whereNull('cancelled_at')
             ->count();
 
         // 3) dodijeljen serviser (bez radnog naloga) – privremena definicija
         $assignedNoWo = (clone $base)
-            ->whereBetween('created_at', [$start, $end])
+            ->where($createdInRange)
             ->whereNotNull('assigned_user_id')
             ->whereNull('completed_at')
             ->whereNull('cancelled_at')
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('wo_items')
+                  ->whereColumn('wo_items.work_order_id', 'work_orders.id');
+            })
             ->count();
 
         // 4) otvoreni radni nalozi (u toku)
         $woOpen = (clone $base)
-            ->whereBetween('created_at', [$start, $end])
+            ->where($createdInRange)
             ->whereNull('completed_at')
             ->whereNull('cancelled_at')
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                  ->from('wo_items')
+                  ->whereColumn('wo_items.work_order_id', 'work_orders.id');
+            })
             ->count();
 
         // 5) završeni (po completed_at)
@@ -113,15 +127,14 @@ class Dashboard extends Component
             ->whereBetween('cancelled_at', [$start, $end])
             ->count();
 
-        $summary = [
-            'total_received'     => $totalReceived,
-            'waiting_assignment' => $waitingAssignment,
-            'assigned_no_wo'     => $assignedNoWo,
-            'wo_open'            => $woOpen,
-            'completed'          => $completed,
-            'cancelled'          => $cancelled,
-            'range'              => [$start, $end], // korisno ako želiš prikaz raspona
-        ];
+        $summary = compact(
+            'totalReceived',
+            'waitingAssignment',
+            'assignedNoWo',
+            'woOpen',
+            'completed',
+            'cancelled'
+        );
 
         return view('livewire.dashboard', compact(
             'user',

@@ -222,7 +222,7 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-4 py-4 text-right">
-                                                    <span class="text-2xl font-extrabold text-slate-900">{{ $summary['total_received'] }}</span>
+                                                    <span class="text-2xl font-extrabold text-slate-900">{{ $summary['totalReceived'] }}</span>
                                                 </td>
                                                 <td class="px-4 py-4 text-right">
                                                     <a href="#"
@@ -240,7 +240,7 @@
                                                             servisera</span>
                                                     </div>
                                                 </td>
-                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['waiting_assignment'] }}</td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['waitingAssignment'] }}</td>
                                                 <td class="px-4 py-3 text-right">
                                                     <a href="#"
                                                         class="text-sm font-medium text-blue-700 hover:underline">Otvori
@@ -257,7 +257,7 @@
                                                             (bez radnog naloga)</span>
                                                     </div>
                                                 </td>
-                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['assigned_no_wo'] }}</td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['assignedNoWo'] }}</td>
                                                 <td class="px-4 py-3 text-right">
                                                     <a href="#"
                                                         class="text-sm font-medium text-blue-700 hover:underline">Otvori
@@ -274,7 +274,7 @@
                                                             nalozi</span>
                                                     </div>
                                                 </td>
-                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['wo_open'] }}</td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['woOpen'] }}</td>
                                                 <td class="px-4 py-3 text-right">
                                                     <a href="#"
                                                         class="text-sm font-medium text-blue-700 hover:underline">Otvori
