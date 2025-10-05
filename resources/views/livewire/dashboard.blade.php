@@ -337,74 +337,126 @@
 
                                         <div class="overflow-x-auto">
                                             <table class="min-w-full divide-y divide-gray-200">
-                                                <thead class="bg-gray-50">
-                                                    <tr>
-                                                        <th
-                                                            class="px-4 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase">
-                                                            Status</th>
-                                                        <th
-                                                            class="px-4 py-3 text-xs font-semibold tracking-wider text-right text-gray-600 uppercase">
-                                                            Broj</th>
-                                                        <th
-                                                            class="px-4 py-3 text-xs font-semibold tracking-wider text-right text-gray-600 uppercase">
-                                                            Akcije</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody class="bg-white divide-y divide-gray-100">
-                                                    <tr class="hover:bg-gray-50">
-                                                        <td class="px-4 py-3"><span
-                                                                class="inline-flex items-center gap-2"><span
-                                                                    class="w-2 h-2 rounded-full bg-amber-500"></span><span
-                                                                    class="text-sm font-medium text-gray-900">Bez
-                                                                    dodijeljenog servisera</span></span></td>
-                                                        <td
-                                                            class="px-4 py-3 text-sm font-semibold text-right text-gray-900">
-                                                            —</td>
-                                                        <td class="px-4 py-3 text-right"><a href="#"
-                                                                class="text-sm font-medium text-blue-600 hover:underline">Otvori
-                                                                listu</a></td>
-                                                    </tr>
-                                                    <tr class="hover:bg-gray-50">
-                                                        <td class="px-4 py-3"><span
-                                                                class="inline-flex items-center gap-2"><span
-                                                                    class="w-2 h-2 bg-indigo-500 rounded-full"></span><span
-                                                                    class="text-sm font-medium text-gray-900">Dodijeljen
-                                                                    serviser (bez naloga)</span></span></td>
-                                                        <td
-                                                            class="px-4 py-3 text-sm font-semibold text-right text-gray-900">
-                                                            —</td>
-                                                        <td class="px-4 py-3 text-right"><a href="#"
-                                                                class="text-sm font-medium text-blue-600 hover:underline">Otvori
-                                                                listu</a></td>
-                                                    </tr>
-                                                    <tr class="hover:bg-gray-50">
-                                                        <td class="px-4 py-3"><span
-                                                                class="inline-flex items-center gap-2"><span
-                                                                    class="w-2 h-2 rounded-full bg-sky-500"></span><span
-                                                                    class="text-sm font-medium text-gray-900">Radni nalozi
-                                                                    u toku</span></span></td>
-                                                        <td
-                                                            class="px-4 py-3 text-sm font-semibold text-right text-gray-900">
-                                                            —</td>
-                                                        <td class="px-4 py-3 text-right"><a href="#"
-                                                                class="text-sm font-medium text-blue-600 hover:underline">Otvori
-                                                                listu</a></td>
-                                                    </tr>
-                                                    <tr class="hover:bg-gray-50">
-                                                        <td class="px-4 py-3"><span
-                                                                class="inline-flex items-center gap-2"><span
-                                                                    class="w-2 h-2 rounded-full bg-emerald-600"></span><span
-                                                                    class="text-sm font-medium text-gray-900">Završeno</span></span>
-                                                        </td>
-                                                        <td
-                                                            class="px-4 py-3 text-sm font-semibold text-right text-gray-900">
-                                                            —</td>
-                                                        <td class="px-4 py-3 text-right"><a href="#"
-                                                                class="text-sm font-medium text-blue-600 hover:underline">Otvori
-                                                                listu</a></td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th
+                                                    class="px-4 py-3 text-xs font-semibold tracking-wider text-left text-gray-600 uppercase">
+                                                    Status</th>
+                                                <th
+                                                    class="px-4 py-3 text-xs font-semibold tracking-wider text-right text-gray-600 uppercase">
+                                                    Broj</th>
+                                                <th
+                                                    class="px-4 py-3 text-xs font-semibold tracking-wider text-right text-gray-600 uppercase">
+                                                    Akcija</th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody class="bg-white divide-y divide-gray-100">
+
+                                            <!-- 1) UKUPNO ZAPRIMLJENO (najupečatljivije) -->
+                                            <tr class="border-l-4 border-slate-700 bg-slate-50 hover:bg-slate-100">
+                                                <td class="px-4 py-4">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2.5 w-2.5 rounded-full bg-slate-700"></span>
+                                                        <span class="text-sm font-semibold text-slate-900">Ukupno
+                                                            zaprimljeno</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4 text-right">
+                                                    <span class="text-2xl font-extrabold text-slate-900">{{ $summary['totalReceived'] }}</span>
+                                                </td>
+                                                <td class="px-4 py-4 text-right">
+                                                    <a href="#"
+                                                        class="text-sm font-medium text-blue-700 hover:underline">Otvori
+                                                        listu</a>
+                                                </td>
+                                            </tr>
+
+                                            <!-- 2) Čeka dodjelu servisera (narandžasta tačka) -->
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-4 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
+                                                        <span class="text-sm font-medium text-gray-900">Čeka dodjelu
+                                                            servisera</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['waitingAssignment'] }}</td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <a href="#"
+                                                        class="text-sm font-medium text-blue-700 hover:underline">Otvori
+                                                        listu</a>
+                                                </td>
+                                            </tr>
+
+                                            <!-- 3) Dodijeljen serviser (bez radnog naloga) – plava tačka -->
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-4 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2.5 w-2.5 rounded-full bg-blue-600"></span>
+                                                        <span class="text-sm font-medium text-gray-900">Dodijeljen serviser
+                                                            (bez radnog naloga)</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['assignedNoWo'] }}</td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <a href="#"
+                                                        class="text-sm font-medium text-blue-700 hover:underline">Otvori
+                                                        listu</a>
+                                                </td>
+                                            </tr>
+
+                                            <!-- 4) Otvoreni radni nalozi -->
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-4 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2.5 w-2.5 rounded-full bg-sky-500"></span>
+                                                        <span class="text-sm font-medium text-gray-900">Otvoreni radni
+                                                            nalozi</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['woOpen'] }}</td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <a href="#"
+                                                        class="text-sm font-medium text-blue-700 hover:underline">Otvori
+                                                        listu</a>
+                                                </td>
+                                            </tr>
+
+                                            <!-- 5) Završeni -->
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-4 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
+                                                        <span class="text-sm font-medium text-gray-900">Završeni</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['completed'] }}</td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <a href="#"
+                                                        class="text-sm font-medium text-blue-700 hover:underline">Otvori
+                                                        listu</a>
+                                                </td>
+                                            </tr>
+
+                                            <!-- 6) Otkazani (opciono) -->
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="px-4 py-3">
+                                                    <div class="flex items-center gap-2">
+                                                        <span class="h-2.5 w-2.5 rounded-full bg-rose-600"></span>
+                                                        <span class="text-sm font-medium text-gray-900">Otkazani</span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 text-sm font-semibold text-right text-gray-900">{{ $summary['cancelled'] }}</td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <a href="#"
+                                                        class="text-sm font-medium text-blue-700 hover:underline">Otvori
+                                                        listu</a>
+                                                </td>
+                                            </tr>
+
+                                        </tbody>
+                                    </table>
                                         </div>
                                     </div>
 
