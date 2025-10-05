@@ -495,40 +495,40 @@ class Intake extends Component
             }
 
             // 4) Re-assign serviser (samo menadžer/admin/owner)
-if ($canReassignOnEdit) {
-    $prev = $wo->assigned_user_id;
-    $new  = $this->assigned_user_id ?: null;
+            if ($canReassignOnEdit) {
+                $prev = $wo->assigned_user_id;
+                $new  = $this->assigned_user_id ?: null;
 
-    if ($prev && !$new) {
-        $wo->update([
-            'assigned_user_id' => null,
-            'status'           => WorkOrderStatus::RECEIVED->value,
-        ]);
-    } elseif (!$prev && $new) {
-        $wo->update(['assigned_user_id' => $new]);
-    } elseif ($prev && $new && $prev != $new) {
-        $wo->update(['assigned_user_id' => $new]);
-    }
-} else {
-    // 4b) SELF-ASSIGN: serviser smije preuzeti SAMO SEBE ako trenutno nema dodijeljenog
-    if ($user?->hasRole('serviser')) {
-        $requested = (int) ($this->assigned_user_id ?: 0);
-
-        if (is_null($wo->assigned_user_id) && $requested === $user->id) {
-            // sigurnost: ista poslovnica
-            if ((int)$user->location_id === (int)$locId) {
-                $wo->update([
-                    'assigned_user_id' => $user->id,
-                    // ako nemaš ASSIGNED status, izostavi ovu liniju
-                  //  'status'           => WorkOrderStatus::ASSIGNED->value ?? $wo->status,
-                ]);
+                if ($prev && !$new) {
+                    $wo->update([
+                        'assigned_user_id' => null,
+                        'status'           => WorkOrderStatus::RECEIVED->value,
+                    ]);
+                } elseif (!$prev && $new) {
+                    $wo->update(['assigned_user_id' => $new]);
+                } elseif ($prev && $new && $prev != $new) {
+                    $wo->update(['assigned_user_id' => $new]);
+                }
             } else {
-                $this->addError('assigned_user_id', 'Ne možete preuzeti nalog iz druge poslovnice.');
+                // 4b) SELF-ASSIGN: serviser smije preuzeti SAMO SEBE ako trenutno nema dodijeljenog
+                if ($user?->hasRole('serviser')) {
+                    $requested = (int) ($this->assigned_user_id ?: 0);
+
+                    if (is_null($wo->assigned_user_id) && $requested === $user->id) {
+                        // sigurnost: ista poslovnica
+                        if ((int)$user->location_id === (int)$locId) {
+                            $wo->update([
+                                'assigned_user_id' => $user->id,
+                                // ako nemaš ASSIGNED status, izostavi ovu liniju
+                                //  'status'           => WorkOrderStatus::ASSIGNED->value ?? $wo->status,
+                            ]);
+                        } else {
+                            $this->addError('assigned_user_id', 'Ne možete preuzeti nalog iz druge poslovnice.');
+                        }
+                    }
+                    // napomena: serviser NE može dodijeliti drugog servisera niti preuzeti već dodijeljen nalog
+                }
             }
-        }
-        // napomena: serviser NE može dodijeliti drugog servisera niti preuzeti već dodijeljen nalog
-    }
-}
 
 
             session()->flash('ok', 'Nalog sačuvan.');
@@ -629,6 +629,13 @@ if ($canReassignOnEdit) {
 
         $user = Auth::user();
         if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
+
+        // 🔒 dozvola: privilegovani ili baš dodijeljeni serviser
+        $wo = WorkOrder::select('id','assigned_user_id')->findOrFail($this->modelId);
+        $isPrivileged = $user->hasAnyRole(['master-admin','vlasnik','menadzer']);
+        $isAssignedTech = $user->hasRole('serviser') && (int)$wo->assigned_user_id === (int)$user->id;
+
+    if (! $isPrivileged && ! $isAssignedTech) return; // ili abort(403)
 
         DB::transaction(function () {
             // Učitaj WO (aktivne stavke su nam korisne, ali nisu blokada)
