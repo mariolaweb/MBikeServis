@@ -1,4 +1,4 @@
-<div class="mx-auto space-y-8 max-w-7xl sm:px-6 lg:px-8">
+<div class="px-2 mx-auto mt-8 space-y-8 max-w-7xl sm:px-6 lg:px-8">
     {{-- Header --}}
     <div class="flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-lg font-semibold">Radni nalozi</h1>

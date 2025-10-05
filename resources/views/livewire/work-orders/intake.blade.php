@@ -1,4 +1,4 @@
-<div class="max-w-5xl mx-auto sm:px-6 lg:px-8">
+<div class="max-w-5xl px-2 mx-auto mt-8 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between mb-6">
         <div class="text-lg font-semibold">
             Prijem opreme
@@ -30,7 +30,7 @@
         @endif
     </div>
 
-    <div class="flex items-center justify-center w-1/2 py-4 mx-auto space-x-5">
+    <div class="flex items-center justify-center w-full py-4 mx-auto space-x-5 md:w-1/2">
         {{-- QR preview + download u admin edit view --}}
         @if (!empty($qrSvgPublicPath))
             <div class="p-2 bg-white border-8 shadow h-44 w-44 rounded-2xl">

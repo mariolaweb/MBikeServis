@@ -6,7 +6,7 @@
                 <!-- Logo -->
                 <div class="flex items-center shrink-0">
                     <a href="{{ route('dashboard') }}">
-                        <x-application-mark class="block w-auto h-9" />
+                       <img src="/images/mbike-logo.webp" class="size-10" alt="M Bike Servis">
                     </a>
                 </div>
 
@@ -157,6 +157,10 @@
         <div class="pt-2 pb-3 space-y-1">
             <x-responsive-nav-link href="{{ route('dashboard') }}" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
+            </x-responsive-nav-link>
+
+            <x-responsive-nav-link href="{{ route('workorders-board') }}" :active="request()->routeIs('workorders-board')">
+                {{ __('Lista naloga') }}
             </x-responsive-nav-link>
         </div>
 
