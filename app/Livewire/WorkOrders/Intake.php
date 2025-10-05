@@ -495,21 +495,41 @@ class Intake extends Component
             }
 
             // 4) Re-assign serviser (samo menadžer/admin/owner)
-            if ($canReassignOnEdit) {
-                $prev = $wo->assigned_user_id;
-                $new  = $this->assigned_user_id ?: null;
+if ($canReassignOnEdit) {
+    $prev = $wo->assigned_user_id;
+    $new  = $this->assigned_user_id ?: null;
 
-                if ($prev && !$new) {
-                    $wo->update([
-                        'assigned_user_id' => null,
-                        'status'           => WorkOrderStatus::RECEIVED->value,
-                    ]);
-                } elseif (!$prev && $new) {
-                    $wo->update(['assigned_user_id' => $new]);
-                } elseif ($prev && $new && $prev != $new) {
-                    $wo->update(['assigned_user_id' => $new]);
-                }
+    if ($prev && !$new) {
+        $wo->update([
+            'assigned_user_id' => null,
+            'status'           => WorkOrderStatus::RECEIVED->value,
+        ]);
+    } elseif (!$prev && $new) {
+        $wo->update(['assigned_user_id' => $new]);
+    } elseif ($prev && $new && $prev != $new) {
+        $wo->update(['assigned_user_id' => $new]);
+    }
+} else {
+    // 4b) SELF-ASSIGN: serviser smije preuzeti SAMO SEBE ako trenutno nema dodijeljenog
+    if ($user?->hasRole('serviser')) {
+        $requested = (int) ($this->assigned_user_id ?: 0);
+
+        if (is_null($wo->assigned_user_id) && $requested === $user->id) {
+            // sigurnost: ista poslovnica
+            if ((int)$user->location_id === (int)$locId) {
+                $wo->update([
+                    'assigned_user_id' => $user->id,
+                    // ako nemaš ASSIGNED status, izostavi ovu liniju
+                  //  'status'           => WorkOrderStatus::ASSIGNED->value ?? $wo->status,
+                ]);
+            } else {
+                $this->addError('assigned_user_id', 'Ne možete preuzeti nalog iz druge poslovnice.');
             }
+        }
+        // napomena: serviser NE može dodijeliti drugog servisera niti preuzeti već dodijeljen nalog
+    }
+}
+
 
             session()->flash('ok', 'Nalog sačuvan.');
             return redirect()->route('workorders-edit', ['workorder' => $wo->id]);
@@ -615,7 +635,7 @@ class Intake extends Component
             $wo = WorkOrder::with(['items' => fn($q) => $q->active()])->findOrFail($this->modelId);
 
             // ➜ UZMI NAJNOVIJI PENDING estimate za OVAJ WO (ne bilo koji 'latest')
-            $est = \App\Models\Estimate::where('work_order_id', $wo->id)
+            $est = Estimate::where('work_order_id', $wo->id)
                 ->where('status', 'pending')
                 ->orderByDesc('received_at')
                 ->with('items')
@@ -693,7 +713,7 @@ class Intake extends Component
         if (! ($user?->hasAnyRole(['master-admin', 'vlasnik', 'menadzer', 'serviser']) ?? false)) return;
 
         // Gađaj BAŠ pending estimate za ovaj WO (ne latest bilo koji)
-        $est = \App\Models\Estimate::where('work_order_id', $this->modelId)
+        $est = Estimate::where('work_order_id', $this->modelId)
             ->where('status', 'pending')
             ->orderByDesc('received_at')
             ->first();
