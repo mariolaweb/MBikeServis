@@ -19,12 +19,21 @@ class Dashboard extends Component
 
         // Ako owner/admin pošalje formu sa ?location=ID → validiraj i upiši u session (prepiši staru)
         if ($isAdminOwner && request()->has('location')) {
-            $loc = request()->integer('location');
+            // Uzmi vrijednost iz GET parametra (?location=)
+            $locParam = request()->input('location');
+
+            if ($locParam === null || $locParam === '') {
+        // "Sve poslovnice" → očisti kontekst
+        session()->forget('current_location');
+    } else {
+
+            $loc = (int) $locParam;
             if (Location::where('id', $loc)->where('is_active', true)->exists()) {
                 session(['current_location' => $loc]);
             }
             // ako je poslao nepostojeći/nea ktivan ID, jednostavno ignorišemo i zadržimo staru session vrijednost
         }
+    }
 
         // Odabir lokacije za prikaz:
         // - owner/admin: iz session-a (ostaje dok se ne promijeni iz dropdowna ili dok se ne odjavi)
